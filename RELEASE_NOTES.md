@@ -63,7 +63,7 @@ Helper
 - 版本号升至 v1.7.0，`README.md` / `CHANGELOG.md` 同步更新。
 
 ### 安装
-1. 下载 `helper.zip`（或完整包 `_extensions.zip`），解压得到 `helper/` 文件夹。
+1. 下载 `helper.zip`（或完整包 `extensions.zip`），解压得到 `helper/` 文件夹。
 2. 复制到 Kindle U 盘的 `/mnt/us/extensions/`，打开 KUAL 即出现 **Helper** 菜单。
 3. 需要联网类功能（联网封面、修复谷歌、检查更新）时，请确保 Kindle 已连 WiFi；部分
    功能依赖设备上的 `curl` 与 Python 3。
@@ -143,7 +143,7 @@ Helper
 - Version bumped to v1.7.0; `README.md` and `CHANGELOG.md` updated accordingly.
 
 ### Install
-1. Download `helper.zip` (or the full `_extensions.zip`) and unzip to get `helper/`.
+1. Download `helper.zip` (or the full `extensions.zip`) and unzip to get `helper/`.
 2. Copy it to `/mnt/us/extensions/` on the Kindle USB drive and open KUAL.
 3. Network features (online covers, Google fix, updater) require WiFi; some need `curl` and
    Python 3 on the device.
