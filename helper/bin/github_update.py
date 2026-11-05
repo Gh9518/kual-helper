@@ -38,6 +38,36 @@ def http_get(url, timeout=15):
         return resp.read()
 
 
+def latest_tag_via_web(repo, timeout=15):
+    """不依赖 API 的兜底：/releases/latest 会 302 到 /releases/tag/<tag>。
+
+    匿名 GitHub API 限额为 60 次/小时，共享网络下常被耗尽（HTTP 403）。
+    网页重定向不受该限额影响，可在限流时仍然拿到最新版本号。
+    """
+    url = 'https://github.com/%s/releases/latest' % repo
+
+    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
+    opener = urllib.request.build_opener(_NoRedirect)
+    req = urllib.request.Request(url, headers={'User-Agent': UA})
+    # 网络偶发抖动时重试一次，避免一次超时就判定更新失败。
+    for _attempt in range(2):
+        loc = ''
+        try:
+            resp = opener.open(req, timeout=timeout)
+            loc = resp.headers.get('Location', '')
+        except urllib.error.HTTPError as e:
+            loc = e.headers.get('Location', '')   # 302 会以 HTTPError 抛出
+        except Exception:
+            continue
+        m = re.search(r'/releases/tag/(v?[0-9]+\.[0-9]+\.[0-9]+)', loc)
+        if m:
+            return m.group(1)
+    return None
+
+
 def parse_version(s):
     """Turn 'v1.2.3' into (1, 2, 3) for comparison."""
     s = (s or '').lstrip('vV').strip()
@@ -71,14 +101,20 @@ def main():
     repo, asset, ext_path = sys.argv[1], sys.argv[2], sys.argv[3]
     check_only = '--check' in sys.argv[4:]
 
+    tag = ''
+    assets = []
     try:
         data = json.loads(http_get(API % repo))
-    except Exception as e:
-        print('获取最新版本失败: %s' % e)
-        return 1
+        tag = data.get('tag_name', '')
+        assets = data.get('assets', [])
+    except Exception as api_err:
+        # 匿名 API 被限流 / 网络异常时，改用网页重定向兜底拿版本号。
+        tag = latest_tag_via_web(repo) or ''
+        if not tag:
+            print('获取最新版本失败: %s' % api_err)
+            return 1
+        print('（API 不可用，已改用网页方式获取版本）')
 
-    tag = data.get('tag_name', '')
-    assets = data.get('assets', [])
     dl = None
     for a in assets:
         if a.get('name') == asset:
@@ -89,6 +125,9 @@ def main():
             if (a.get('name') or '').endswith('.zip'):
                 dl = a.get('browser_download_url')
                 break
+    if not dl and tag:
+        # 兜底路径没有 assets 元数据，按 GitHub Release 固定规则拼接下载地址。
+        dl = 'https://github.com/%s/releases/download/%s/%s' % (repo, tag, asset)
     if not dl:
         print('发布中没有找到更新包（%s）' % asset)
         return 1
@@ -106,12 +145,21 @@ def main():
 
     tmp = tempfile.mkdtemp(prefix='kual-upd-')
     zip_path = os.path.join(tmp, 'update.zip')
-    try:
-        with open(zip_path, 'wb') as f:
-            f.write(http_get(dl, timeout=120))
-    except Exception as e:
-        print('下载失败: %s' % e)
+    payload = None
+    last_err = None
+    # 弱网 / CDN 抖动时重试一次，避免单次超时就判定更新失败。
+    for _attempt in range(2):
+        try:
+            payload = http_get(dl, timeout=90)
+            break
+        except Exception as e:
+            last_err = e
+    if not payload:
+        shutil.rmtree(tmp, ignore_errors=True)
+        print('下载失败: %s（请检查网络后重试）' % last_err)
         return 1
+    with open(zip_path, 'wb') as f:
+        f.write(payload)
 
     extract_dir = os.path.join(tmp, 'ext')
     os.makedirs(extract_dir, exist_ok=True)

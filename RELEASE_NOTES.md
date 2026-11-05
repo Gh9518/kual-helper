@@ -68,6 +68,8 @@ Helper
 - 为「屏蔽更新 / 恢复更新」加入幂等保护：重复点击不再覆盖 OTA 二进制备份，避免无法恢复。
 - 重写 SDR 清理：修正电子书后缀识别、支持递归子目录、移除无效逻辑。
 - 为更新器增加 zip-slip 路径穿越防护；清理 backdoorlock 残留的日志写入。
+- 更新器在匿名 GitHub API 被限流（HTTP 403）时改用网页重定向兜底，并对下载加入重试，
+  共享网络 / 弱网下「检查更新」仍可用（无需在插件内放置任何 token）。
 
 ### 已知限制
 - 「屏蔽更新」「恢复更新」执行后设备会重启，属预期行为。
@@ -136,6 +138,9 @@ new `helper.zip` also works.
 - Rewrote the SDR cleaner (correct ebook suffix matching, recursive subdirectories, dead-code
   removal).
 - Added zip-slip protection to the updater; removed leftover log writes in backdoorlock.
+- The updater now falls back to the `/releases/latest` web redirect when the anonymous GitHub
+  API is rate-limited (HTTP 403), and retries downloads once — so `Check Update` still works on
+  shared/slow networks without embedding any token in the extension.
 
 ### Known limitations
 - OTA block/restore reboot the device (expected).
