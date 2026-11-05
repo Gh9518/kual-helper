@@ -11,65 +11,51 @@
                         {
                             "name": "禁用屏保",
                             "priority": 1,
-                            "action": "./bin/ssprevent.sh",
+                            "action": "/bin/sh /mnt/us/extensions/helper/bin/ssprevent.sh",
                             "exitmenu": false,
-                            "checked": true,
-                            "status": false,
-                            "internal": "status 已禁用屏保"
+                            "status": false
                         },
                         {
                             "name": "允许屏保",
                             "priority": 2,
-                            "action": "./bin/ssallow.sh",
+                            "action": "/bin/sh /mnt/us/extensions/helper/bin/ssallow.sh",
                             "exitmenu": false,
-                            "checked": true,
-                            "status": false,
-                            "internal": "status 已恢复屏保"
+                            "status": false
                         },
                         {
                             "name": "替换商店",
                             "priority": 3,
-                            "action": "./bin/do.sh toggle_store_button replace",
+                            "action": "/bin/sh /mnt/us/extensions/helper/bin/do.sh toggle_store_button replace",
                             "exitmenu": false,
-                            "checked": true,
-                            "status": false,
-                            "internal": "status 商店按钮已替换为 KUAL"
+                            "status": false
                         },
                         {
                             "name": "恢复商店",
                             "priority": 4,
-                            "action": "./bin/do.sh toggle_store_button restore",
+                            "action": "/bin/sh /mnt/us/extensions/helper/bin/do.sh toggle_store_button restore",
                             "exitmenu": false,
-                            "checked": true,
-                            "status": false,
-                            "internal": "status 商店按钮已恢复"
+                            "status": false
                         },
                         {
                             "name": "清理SDR",
                             "priority": 5,
-                            "action": "./bin/sdr-cleaner/sdr_cleaner.sh --sdr --no-log",
+                            "action": "/bin/sh /mnt/us/extensions/helper/bin/sdr-cleaner/sdr_cleaner.sh --sdr --no-log",
                             "exitmenu": true,
-                            "checked": false,
-                            "status": false,
-                            "internal": "status 无用 SDR 文件夹已清理"
+                            "status": false
                         },
                         {
                             "name": "清理截图",
                             "priority": 6,
-                            "action": "./bin/sdr-cleaner/sdr_cleaner.sh --shot --no-sdr --no-log",
+                            "action": "/bin/sh /mnt/us/extensions/helper/bin/sdr-cleaner/sdr_cleaner.sh --shot --no-sdr --no-log",
                             "exitmenu": true,
-                            "checked": false,
-                            "status": false,
-                            "internal": "status 截图已清理"
+                            "status": false
                         },
                         {
                             "name": "清理日志",
                             "priority": 7,
-                            "action": "./bin/clean_logs.sh",
+                            "action": "/bin/sh /mnt/us/extensions/helper/bin/clean_logs.sh",
                             "exitmenu": true,
-                            "checked": false,
-                            "status": false,
-                            "internal": "status 日志与崩溃文件已清理"
+                            "status": false
                         }
                     ]
                 },
@@ -80,38 +66,30 @@
                         {
                             "name": "修复封面",
                             "priority": 1,
-                            "action": "./bin/fix-cover/fix_cover.sh",
+                            "action": "/bin/sh /mnt/us/extensions/helper/bin/fix-cover/fix_cover.sh",
                             "exitmenu": true,
-                            "checked": false,
-                            "status": false,
-                            "internal": "status 电子书封面修复完成"
+                            "status": false
                         },
                         {
                             "name": "清理封面",
                             "priority": 2,
-                            "action": "./bin/fix-cover/fix_cover.sh --clean",
+                            "action": "/bin/sh /mnt/us/extensions/helper/bin/fix-cover/fix_cover.sh --clean",
                             "exitmenu": true,
-                            "checked": false,
-                            "status": false,
-                            "internal": "status 无效封面文件已清理"
+                            "status": false
                         },
                         {
                             "name": "联网修复封面",
                             "priority": 3,
-                            "action": "./bin/fix-cover/fix_cover.sh --net --missing-only",
+                            "action": "/bin/sh /mnt/us/extensions/helper/bin/fix-cover/fix_cover.sh --net --missing-only",
                             "exitmenu": true,
-                            "checked": false,
-                            "status": false,
-                            "internal": "status 联网补齐缺失封面完成"
+                            "status": false
                         },
                         {
                             "name": "修复谷歌",
                             "priority": 4,
-                            "action": "./bin/fix-google-translate/fix_google_translate.sh",
+                            "action": "/bin/sh /mnt/us/extensions/helper/bin/fix-google-translate/fix_google_translate.sh",
                             "exitmenu": true,
-                            "checked": false,
-                            "status": false,
-                            "internal": "status 已写入最快的谷歌翻译 IP"
+                            "status": false
                         }
                     ]
                 },
@@ -122,58 +100,46 @@
                         {
                             "name": "屏蔽更新",
                             "priority": 1,
-                            "action": "./bin/block-ota/rename.sh",
+                            "action": "/bin/sh /mnt/us/extensions/helper/bin/block-ota/rename.sh",
                             "exitmenu": true,
-                            "checked": false,
-                            "status": false,
-                            "internal": "status 已屏蔽系统更新（BlockKindleOTA）"
+                            "status": false
                         },
                         {
                             "name": "恢复更新",
                             "priority": 2,
-                            "action": "./bin/block-ota/restore.sh",
+                            "action": "/bin/sh /mnt/us/extensions/helper/bin/block-ota/restore.sh",
                             "exitmenu": true,
-                            "checked": false,
-                            "status": false,
-                            "internal": "status 已恢复系统更新（BlockKindleOTA）"
+                            "status": false
                         },
                         {
                             "name": "锁定更新",
                             "priority": 3,
-                            "action": "./bin/backdoorlock/lock.sh",
+                            "action": "/bin/sh /mnt/us/extensions/helper/bin/backdoorlock/lock.sh",
                             "exitmenu": false,
-                            "checked": false,
-                            "status": false,
-                            "internal": "status 已锁定更新（Back Door Lock）"
+                            "status": false
                         },
                         {
                             "name": "解锁更新",
                             "priority": 4,
-                            "action": "./bin/backdoorlock/unlock.sh",
+                            "action": "/bin/sh /mnt/us/extensions/helper/bin/backdoorlock/unlock.sh",
                             "exitmenu": false,
-                            "checked": false,
-                            "status": false,
-                            "internal": "status 已解锁更新（Back Door Lock）"
+                            "status": false
                         },
                         {
                             "name": "删除更新",
                             "priority": 5,
-                            "action": "./bin/backdoorlock/delete.sh",
+                            "action": "/bin/sh /mnt/us/extensions/helper/bin/backdoorlock/delete.sh",
                             "exitmenu": false,
-                            "checked": false,
-                            "status": false,
-                            "internal": "status 已删除设备上的更新文件"
+                            "status": false
                         }
                     ]
                 },
                 {
                     "name": "检查更新",
                     "priority": 1030,
-                    "action": "./bin/github_update.sh",
+                    "action": "/bin/sh /mnt/us/extensions/helper/bin/github_update.sh",
                     "exitmenu": true,
-                    "checked": false,
-                    "status": false,
-                    "internal": "status 正在检查 GitHub 更新"
+                    "status": false
                 }
             ]
         }

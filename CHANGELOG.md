@@ -1,5 +1,38 @@
 # 更新说明 / Changelog
 
+## v1.8.0 — 2026-11-06
+
+**修复 / Fixed（全部功能失效）**
+- 回到最初上传的原始插件包逐项核对，定位「每一项点击后都无反应」的共性根因：菜单用相对
+  `./bin/...` 调用脚本，脚本内又以 `. ./bin/config.sh` / `. ./bin/msg.sh` 加载依赖，
+  隐含假设 KUAL 执行时的工作目录就是插件目录，并依赖可执行位与 shebang。
+- `menu.json`：17 个 `action` 全部改为绝对路径 + 显式 `/bin/sh`
+  （`/bin/sh /mnt/us/extensions/helper/bin/...`）；删除全部 `checked` 与 `internal`，
+  保留 `status:false`。删除 `checked` 后，屏保 / 商店不再出现「同时选中」的假状态。
+- 全部 14 个 `.sh` 加入 `KUAL_HOME` 自定位（由 `$0` 真实路径向上查找 `config.xml`），
+  `config.sh` / `msg.sh` / Python 入口一律改为 `$KUAL_HOME/bin/...` 绝对路径；
+  依赖不可读时定义最小反馈函数，避免 POSIX `sh` 因 `.` 失败直接终止。
+- 去掉非 POSIX 写法（`source` / `&>` / `==` / `local`）；`updatewait` 日志改写到
+  `/dev/null`；`fix-google-translate.sh` 补 `grep` / `sed` / `curl` 命令兜底。
+- 修复 `do.sh` 去 `local` 引入的回归：原版 `local verb=... btnpath=... bak` 去掉 `local`
+  后裸 `bak` 被当命令执行，前置赋值只在该命令环境生效，`btnpath` 恒为空，导致「替换商店 /
+  恢复商店」必然报 `Store button file not found (unsupported firmware)`。已改为逐行赋值。
+
+**校验 / Verified**
+- 静态：`menu.json` 合法；17 个动作全部绝对路径 + 显式 `/bin/sh`；无 `checked` / `internal`；
+  全部 `.sh` 与 `updatewait` 通过 `sh -n`，9 个 `.py` 通过编译检查，无 BOM / CRLF。
+- 真机语义桩测 **17/17**：`cwd='/'`、脚本 `644` 无可执行位、不注入
+  `KUAL_HOME` / `KINDLE_PATH` / `KUAL_EIPS`、系统命令用 mock；17 个动作全部出现
+  `Waiting...` 与 `Done:` 且无 `Failed:`，并逐项断言副作用（屏保 1/0、商店改写与还原、
+  日志删除、hosts 写入最快 IP、OTA 改名与还原、backdoorlock 劫持与还原、更新包删除、
+  更新检查执行）。
+
+**文档 / Docs**
+- `config.xml` / `VERSION` 升至 v1.8.0；`README.md` 新增「执行链修复与本轮校验」一节，
+  `RELEASE_NOTES.md` 中英双语同步；`extensions.zip` 与 `helper.zip` 重新打包。
+
+---
+
 ## v1.7.0 — 2026-11-05
 
 **新增 / Added**
@@ -64,3 +97,4 @@
 | v1.5 | 新增「清理日志」 |
 | v1.6 | 屏保改互斥开关、清理三项归后、删内置 Install MR、菜单名英文化；本轮代码审查与修复、发布到 GitHub |
 | v1.7 | 菜单改回中文；屏保/商店恢复四个独立菜单原方案；新增统一 Waiting / Done / Failed 屏幕反馈 |
+| v1.8 | 全功能修复：17 个动作改绝对路径 + 显式 /bin/sh、脚本自定位 KUAL_HOME、删除 checked 勾选；修掉商店 do.sh 去 local 引发的回归 |

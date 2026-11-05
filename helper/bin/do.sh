@@ -1,4 +1,13 @@
-#!/bin/ash -
+#!/bin/sh
+
+# 由 $0 的真实路径定位插件根目录（向上查找 config.xml），不依赖调用方的工作目录；
+# 找不到时回退到标准安装路径。KUAL_HOME 可由测试环境覆盖。
+_kh=$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd) || _kh=''
+case "$_kh" in ''|/) _kh=/mnt/us/extensions/helper ;; esac
+while [ "$_kh" != / ] && [ ! -f "$_kh/config.xml" ]; do _kh=$(dirname "$_kh"); done
+[ -f "$_kh/config.xml" ] || _kh=/mnt/us/extensions/helper
+KUAL_HOME=${KUAL_HOME:-$_kh}
+
 # do.sh - KUAL add-ons processor by stepk, version 20130507,a
 # $Id: do.sh 13380 2016-07-19 01:01:28Z NiLuJe $
 # 改动：替换 / 恢复商店按钮时通过 bin/msg.sh 给出运行中提示与结果反馈；
@@ -7,13 +16,22 @@
 # kindle AWK is busybox AWK not gawk
 [ -f /bin/awk ] || alias awk='/bin/busybox awk'
 
-. ./bin/msg.sh
+if [ -r "$KUAL_HOME/bin/msg.sh" ]; then
+    . "$KUAL_HOME/bin/msg.sh"
+else
+    _eips=$(command -v eips 2>/dev/null)
+    msg_show() { [ -n "$_eips" ] && "$_eips" 2 "$1" "$2" >/dev/null 2>&1; printf '[KUAL] %s\n' "$2" >&2; }
+    msg_wait() { msg_show 3 "Waiting... $*"; }
+    msg_info() { msg_show 3 "$*"; }
+    msg_ok()   { msg_show 4 "Done: $*"; }
+    msg_fail() { msg_show 4 "Failed: $*"; }
+fi
 
 CONFIGPATH="/mnt/us/extensions/KUAL.cfg"
 
 # helpers
 config_full_path () { #{{{
-	local - a1="${1}"
+	a1="${1}"
 	if [ -r "${CONFIGPATH}" ] ; then
 		echo -n "${CONFIGPATH}"
 	elif [ create = "${a1}" ] ; then
@@ -22,17 +40,17 @@ config_full_path () { #{{{
 }
 #}}}
 get_option () { #{{{ option
-	local x
+	x=''
 	eval "${1}="
 	if [ -r "${CONFIGPATH}" ] ; then
-		source "${CONFIGPATH}"
+		. "${CONFIGPATH}"
 		x="${1}=\"\${KUAL_${1}}\""
 		eval ${x}
 	fi
 }
 #}}}
 set_option () { #{{{ option value
-	local option="${1}" value="${2}" config="$(config_full_path create)" newtext=''
+	option="${1}" value="${2}" config="$(config_full_path create)" newtext=''
 	newtext=$(awk 'BEGIN{nf=1} /^\s*KUAL_'${option}'=/{sub(/="?[^"]*"?/,"=\"'${value}'\"");nf=0} {print} END{exit nf}' "${config}" ||
 		echo "KUAL_${option}=\"${value}\"")
 	[ 0 -ne ${#newtext} ] && echo "${newtext}" > "${config}"
@@ -52,7 +70,7 @@ KUAL_filepath () { #{{{
 }
 #}}}
 store_button_filepath () { #{{{
-	local KT532="/usr/share/webkit-1.0/pillow/javascripts/search_bar.js"
+	KT532="/usr/share/webkit-1.0/pillow/javascripts/search_bar.js"
 	[ -e "${KT532}" ] && echo -n "${KT532}"
 }
 #}}}
@@ -81,7 +99,12 @@ toggle_collation () { #{{{
 #}}}
 toggle_store_button () { #{{{
 # replace/restore FW 5.x Store button
-	local verb="${1}" btnpath="$(store_button_filepath)" bak
+# 注意：原版此处为 `local verb=... btnpath=... bak`（ash 内置 local 声明变量）。
+# 去掉 local 后若仍把 bak 写在同一行，POSIX sh 会把 bak 当作命令执行，
+# 并使前置赋值只作用于该命令的环境，导致 btnpath 为空、功能失效。故逐行赋值。
+	verb="${1}"
+	btnpath="$(store_button_filepath)"
+	bak=''
 	[ -e "${btnpath}" ] || { msg_fail "Store button file not found (unsupported firmware)"; return; }
 	bak="${btnpath}.KUAL_bak"
 	case "${verb}" in
@@ -99,13 +122,13 @@ toggle_store_button () { #{{{
 		"replace" )
 			msg_wait "Replacing Store button with KUAL"
 			[ -e "$bak" ] && { msg_ok "Store button already replaced"; return; }
-			local needle='app://com.lab126.store'
+			needle='app://com.lab126.store'
 			if ! grep -q -m 1 -F "${needle}" "${btnpath}" ; then
 				msg_fail "Store button unchanged (target string not found)"
 				return
 			fi
-			local repl="$(KUAL_filepath)"
-			if [ "${repl}" == "com.mobileread.ixtab.kindlelauncher" ] ; then
+			repl="$(KUAL_filepath)"
+			if [ "${repl}" = "com.mobileread.ixtab.kindlelauncher" ] ; then
 				if mntroot rw && mv "${btnpath}" "${bak}" ; then
 					sed -re "s#([\"'])${needle}(['\"])#\1app://${repl}\2#" "${bak}" > "${btnpath}"
 					mntroot ro

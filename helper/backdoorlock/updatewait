@@ -1,11 +1,11 @@
 #!/bin/sh
 
-LOG=$(dirname "$0")/update.log
+LOG=/dev/null
 
 is_full_update() {
     [ -n "$1" ] || return 0
     VER=`dd if=$1 bs=1 count=2 | xargs`
-    if [ "$VER" == "FB" ]; then
+    if [ "$VER" = "FB" ]; then
         return 1
     else
         return 0
@@ -23,7 +23,7 @@ echo "About to install:" >> $LOG
 cat /tmp/.framework_update  >> $LOG
 echo >> $LOG
 
-if [ "$1" == "-i" ]
+if [ "$1" = "-i" ]
 then
     echo "Immediate update (i.e. initiated by user), proceeding..." >> $LOG
     exec /usr/sbin/updatewait $@
@@ -31,7 +31,7 @@ else
     echo "Pushed update (i.e. initiated by Amazon), denied..." >> $LOG
     is_full_update $(cat /tmp/.framework_update 2>/dev/null)
     IS_FULL_UPDATE=$?
-    if [ "$IS_FULL_UPDATE" == 1 ]
+    if [ "$IS_FULL_UPDATE" = 1 ]
     then
         echo "Full update (rootfs & initramfs images), protecting from installing on reboot" >> $LOG
         touch "/mnt/us/update__this-file-prevents-installing-on-reboot.bin"

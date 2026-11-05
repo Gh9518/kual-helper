@@ -10,6 +10,7 @@ for _p in /usr/sbin/eips /usr/bin/eips /sbin/eips /bin/eips; do
     [ -x "$_p" ] && KUAL_EIPS="$_p" && break
 done
 [ -n "$KUAL_EIPS" ] || KUAL_EIPS=$(command -v eips 2>/dev/null)
+[ -n "$KUAL_EIPS" ] || KUAL_EIPS=eips
 
 msg_show() {
     _krow=$1
@@ -30,3 +31,6 @@ msg_wait() { msg_show 3 "Waiting... $*"; }
 msg_info() { msg_show 3 "$*"; }
 msg_ok()   { msg_show 4 "Done: $*"; }
 msg_fail() { msg_show 4 "Failed: $*"; }
+
+# 保证 source 返回 0（探测不到 eips 时也不影响调用脚本继续执行）
+:

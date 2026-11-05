@@ -2,7 +2,7 @@
 <extension>
     <information>
         <name>Helper</name>
-        <version>1.7.0</version>
+        <version>1.8.0</version>
         <author>整合自 helper / bookfere-tools / KUAL-add-ons</author>
         <id>helper</id>
     </information>

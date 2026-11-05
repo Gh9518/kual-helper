@@ -1,4 +1,4 @@
-# KUAL Helper（单插件整合版 v1.7.0）
+# KUAL Helper（单插件整合版 v1.8.0）
 
 把原先分散在多个插件里的功能**全部整合为单一插件 `helper`**。安装文件夹名即 `helper`，
 直接作为 KUAL 的 **Helper** 菜单出现。
@@ -7,8 +7,10 @@
 - 中英双语发布说明：[RELEASE_NOTES.md](RELEASE_NOTES.md) ｜ 更新说明：[CHANGELOG.md](CHANGELOG.md) ｜ 致谢：[CREDITS.md](CREDITS.md)
 - 菜单里的「检查更新」会自动连接上述仓库的最新 Release 检查并安装更新。
 
-> 本版把菜单改回中文、恢复屏保 / 商店四个独立菜单的原始方案，并为**全部动作**加入
-> `Waiting...` / `Done:` / `Failed:` 屏幕反馈。
+> v1.8.0 是**全功能修复版**：回到最初上传的原始插件逐项核对，修掉导致「所有菜单点击都无反应」
+> 的共性执行链问题（相对路径、工作目录、`source` 失败、可执行位假设）。17 个动作全部改为
+> **绝对路径 + 显式 `/bin/sh` 调用**，脚本自行定位插件根目录；同时删除点击后残留的勾选标记，
+> 屏保 / 商店不再出现「同时选中」的假状态。`Waiting...` / `Done:` / `Failed:` 反馈保持不变。
 
 ## 一、菜单结构（全部中文、无日志）
 
@@ -38,10 +40,13 @@ Helper                     (priority -998)
 ```
 
 > 所有菜单项均**不带日志**：不生成任何日志文件，结果只在屏幕提示。
+> `menu.json` 里 17 个 `action` 全部是**绝对路径**且以显式 `/bin/sh` 开头，例如
+> `/bin/sh /mnt/us/extensions/helper/bin/ssprevent.sh`。这样既不依赖 KUAL 调用时的工作
+> 目录，也不要求脚本带可执行位——这是 v1.8.0 修复「点击无反应」的关键。
 
-### 一级菜单名（本轮改回中文）
+### 一级菜单名（中文）
 
-| 中文 | 上一版英文 |
+| 中文 | 曾用的英文 |
 |---|---|
 | 系统工具 | System Tools |
 | 修复失效 | Repair |
@@ -50,7 +55,7 @@ Helper                     (priority -998)
 
 二级动作名与 KUAL 状态栏文本同样为中文。
 
-### 屏幕反馈（本版新增）
+### 屏幕反馈
 
 `bin/msg.sh` 统一封装 Kindle 的 `eips`：动作一被点击就在屏幕第 3 行显示
 `Waiting... <任务>`，结束时在第 4 行显示 `Done: <结果>` 或 `Failed: <原因>`。
@@ -69,25 +74,33 @@ Helper                     (priority -998)
 
 ## 二、Install MR Packages：不再内置，改用系统自动项
 
-- 上一版内置的 `Install MR Packages`（`bin/install_mr.sh`）已**删除**——真机 KUAL/MRPI
+- 内置的 `Install MR Packages`（`bin/install_mr.sh`）已**删除**——真机 KUAL/MRPI
   会**自动注入**这个按钮，无需插件重复提供，避免出现两个同名项。
 - KUAL 菜单按 `priority` **升序**排列（数值越小越靠上）。自动注入的 `Install MR Packages`
   通常是小/负 priority；本插件 4 个菜单保持 `1000 / 1010 / 1020 / 1030`（大正数），
   因此**所有功能菜单仍严格排在其下方**。
 
-## 三、屏保与商店：恢复原来方案
+## 三、屏保与商店：四个常驻独立菜单
 
-本版把上一轮的「互斥开关」改回四个**常驻独立菜单**，随时可点、互不隐藏：
+屏保与商店保持四个**常驻独立菜单**，随时可点、互不隐藏：
 
-- 删除状态文件 `/mnt/us/extensions/helper/.screensaver_disabled` 与菜单里的全部 `if`
-  互斥条件——新固件上 `search_bar.js` 路径可能不同，`if` 条件会让商店菜单整个消失；
-  重启后状态文件与 `preventScreenSaver` 运行时属性也可能不一致，导致菜单显示错误。
-- `ssprevent.sh` / `ssallow.sh` 恢复原始 helper 的直接调用：
+- 不使用状态文件与 `if` 互斥条件——新固件上 `search_bar.js` 路径可能不同，`if` 条件
+  会让商店菜单整个消失；重启后状态文件与 `preventScreenSaver` 运行时属性也可能不一致。
+- `ssprevent.sh` / `ssallow.sh` 沿用原始 helper 的直接调用：
   `lipc-set-prop -i com.lab126.powerd preventScreenSaver 1` / `0`，并检查返回码给出
   成功或失败反馈。`preventScreenSaver` 是运行时属性，重启后会复位，需要时再点一次即可。
 - `替换商店` / `恢复商店` 沿用 KUAL-add-ons 的原始 `do.sh toggle_store_button` 逻辑
-  （备份 `search_bar.js.KUAL_bak` → `sed` 替换为 KUAL → 重启后生效）；补上失败分支的
-  `mntroot ro`，并在不支持的固件、已替换 / 无需恢复等情况下都给出明确提示，不再静默无反应。
+  （备份 `search_bar.js.KUAL_bak` → `sed` 替换为 KUAL → 重启后生效）；失败分支补上
+  `mntroot ro`，并在不支持的固件、已替换 / 无需恢复等情况下都给出明确提示。
+
+> **v1.8.0 关键修复**：菜单里已删除 `checked` 字段。此前四个动作项都带 `checked:true`，
+> KUAL 会在点击后留下勾选标记，于是「禁用屏保 / 允许屏保」「替换商店 / 恢复商店」看起来
+> 能同时选中。现在它们是普通动作，点击后只给出屏幕反馈，不再残留任何勾选状态。
+>
+> 同一轮还修掉了 `do.sh` 的一处回归：为兼容 POSIX `sh` 去掉原版
+> `local verb=... btnpath=... bak` 的 `local` 后，裸 `bak` 会被当成命令执行，前置赋值
+> 只作用于该命令的环境，导致 `btnpath` 恒为空、商店两项必然报
+> `Store button file not found (unsupported firmware)`。现已按原版语义改为逐行赋值。
 
 ### 清理三项归到末尾
 `清理SDR`、`清理截图`、`清理日志` 三个"清理"类动作集中在 **系统工具的最后三位**
@@ -179,7 +192,7 @@ Helper                     (priority -998)
 
 `github_update.sh` → `github_update.py`：通过 GitHub API 查最新 Release → 与本地 `VERSION`
 比对 → **仅当确实有新版本时**才下载 asset 并解压覆盖到扩展目录；已是最新则只提示，不下载。
-逐行显示版本状态（如 `Already up-to-date: v1.7.0` / `Downloading update package...` /
+逐行显示版本状态（如 `Already up-to-date: v1.8.0` / `Downloading update package...` /
 `Updated to v1.x.x - please refresh KUAL menu`），首尾各有 Waiting / Done 提示。
 
 - `bin/config.sh` 已指向正式仓库 `Gh9518/kual-helper`，资产名 `helper.zip`；
@@ -190,13 +203,32 @@ Helper                     (priority -998)
 
 把解压后的 `helper/` 复制到 Kindle 的 `/mnt/us/extensions/`，打开 KUAL 即出现 **Helper** 菜单。
 
-## 九、本轮校验
+## 九、v1.8.0 执行链修复与本轮校验
 
+**为什么会「每一项点击后都无反应」**：v1.7.0 的菜单用相对 `./bin/...` 调用脚本，脚本内部
+又用 `. ./bin/config.sh` / `. ./bin/msg.sh` 加载依赖，整套链路默认 KUAL 执行时的工作目录
+就是插件目录；同时隐含要求脚本带可执行位、shebang 能被正确解析。任一条件不满足，动作
+就会静默失败。对照最初上传的原始插件：能正常工作的屏保脚本是零依赖的极简 `lipc` 调用，
+BlockKindleOTA / backdoorlock 的菜单也只有 `name / priority / action / exitmenu` 四个字段。
+
+**修复**
+- `menu.json`：17 个 `action` 全部改为 `/bin/sh /mnt/us/extensions/helper/bin/...`，
+  删除 `checked` 与 `internal`，保留 `status:false`。
+- 全部 14 个 `.sh` 加入 `KUAL_HOME` 自定位（从 `$0` 真实路径向上找 `config.xml`），
+  `config.sh` / `msg.sh` / Python 入口一律改成 `$KUAL_HOME/bin/...` 绝对路径。
+- 依赖加载加 fallback：`config.sh` 或 `msg.sh` 不可读时定义最小反馈函数，避免 POSIX `sh`
+  因 `.` 失败直接终止。
+- 去掉非 POSIX 写法（`source` / `&>` / `==` / `local`），并修复去掉 `local` 后
+  `do.sh` 中 `bak` 被当成命令的回归。
+- 屏保 / 商店四个菜单常驻独立且不带 `checked`，不再出现「同时选中」的假状态。
+
+**校验**
 - `menu.json` JSON 合法；4 个一级菜单名为中文；全部 `priority ≥ 1000`；
-  全部 17 个 `action` 路径存在；
-- 屏保 / 商店去掉状态文件与 `if` 条件后为四个常驻独立菜单；
-  系统工具末三项恰为 `清理SDR / 清理截图 / 清理日志`；
-- 隔离桩测 17 个动作：**全部**出现 `Waiting...` 与 `Done:` / `Failed:` 提示；
-- 屏保 `lipc-set-prop ... preventScreenSaver 1/0` 调用正确；
-  商店替换后 `search_bar.js` 指向 KUAL 且生成备份、恢复后还原原文并清除备份；
-- 全部 `.sh` 通过 `sh -n`，全部 `.py` 通过编译检查，无日志落盘残留。
+  17 个 `action` 全部为绝对路径且显式 `/bin/sh`；无 `checked`、无 `internal`。
+- 全部 `.sh` 与 `updatewait` 通过 `sh -n`，全部 `.py` 通过编译检查，无 BOM / CRLF。
+- **真机语义桩测 17/17**：从 `cwd='/'` 执行、脚本设为 `644` 无可执行位、不注入
+  `KUAL_HOME` / `KINDLE_PATH` / `KUAL_EIPS`，系统命令用 mock。17 个动作全部产生
+  `Waiting...` 与 `Done:` 反馈且无 `Failed:`；并逐项断言副作用：
+  屏保 `preventScreenSaver 1/0`、商店 `search_bar.js` 改写与还原（含 `.KUAL_bak`）、
+  日志删除、`/etc/hosts` 写入最快 IP、OTA 二进制改名与还原、backdoorlock 配置劫持与
+  还原、更新包删除、更新检查执行。

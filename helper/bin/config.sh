@@ -1,16 +1,34 @@
 #!/bin/sh
 
+# 由 $0 的真实路径定位插件根目录（向上查找 config.xml），不依赖调用方的工作目录；
+# 找不到时回退到标准安装路径。KUAL_HOME 可由测试环境覆盖。
+_kh=$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd) || _kh=''
+case "$_kh" in ''|/) _kh=/mnt/us/extensions/helper ;; esac
+while [ "$_kh" != / ] && [ ! -f "$_kh/config.xml" ]; do _kh=$(dirname "$_kh"); done
+[ -f "$_kh/config.xml" ] || _kh=/mnt/us/extensions/helper
+KUAL_HOME=${KUAL_HOME:-$_kh}
+
+
 #------------------------
 # bookfere.com
 #------------------------
 
 KINDLE_PATH=/mnt/us
 
-SDR_SCRIPT=./bin/sdr-cleaner/sdr_cleaner.py
-FIX_SCRIPT=./bin/fix-cover/fix_cover.py
+SDR_SCRIPT="$KUAL_HOME/bin/sdr-cleaner/sdr_cleaner.py"
+FIX_SCRIPT="$KUAL_HOME/bin/fix-cover/fix_cover.py"
 
 # 统一屏幕反馈（Waiting / Done / Failed），见 bin/msg.sh
-. ./bin/msg.sh
+if [ -r "$KUAL_HOME/bin/msg.sh" ]; then
+    . "$KUAL_HOME/bin/msg.sh"
+else
+    _eips=$(command -v eips 2>/dev/null)
+    msg_show() { [ -n "$_eips" ] && "$_eips" 2 "$1" "$2" >/dev/null 2>&1; printf '[KUAL] %s\n' "$2" >&2; }
+    msg_wait() { msg_show 3 "Waiting... $*"; }
+    msg_info() { msg_show 3 "$*"; }
+    msg_ok()   { msg_show 4 "Done: $*"; }
+    msg_fail() { msg_show 4 "Failed: $*"; }
+fi
 
 # 兼容旧写法：print_log <行号> <文本>
 print_log() {

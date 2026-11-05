@@ -1,11 +1,29 @@
 #!/bin/sh
+
+# 由 $0 的真实路径定位插件根目录（向上查找 config.xml），不依赖调用方的工作目录；
+# 找不到时回退到标准安装路径。KUAL_HOME 可由测试环境覆盖。
+_kh=$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd) || _kh=''
+case "$_kh" in ''|/) _kh=/mnt/us/extensions/helper ;; esac
+while [ "$_kh" != / ] && [ ! -f "$_kh/config.xml" ]; do _kh=$(dirname "$_kh"); done
+[ -f "$_kh/config.xml" ] || _kh=/mnt/us/extensions/helper
+KUAL_HOME=${KUAL_HOME:-$_kh}
+
 # 清理日志：删除 USB 可见区（/mnt/us）内的所有日志文件，以及 Kindle 5.16.x+
 # 生成的 4 类崩溃日志 / 转储文件：
 #   ① Indexer_Dump*   ② cvm_*（…juno…）  ③ KPPMainApp*   ④ Mesquite*
 # 并一并清理同类崩溃变体（*_crash_*、*.core、indexer*.dump* 等）。
 # 只按「文件名」匹配、大小写不敏感；不写任何日志文件，结果只在屏幕提示。
 
-. ./bin/msg.sh
+if [ -r "$KUAL_HOME/bin/msg.sh" ]; then
+    . "$KUAL_HOME/bin/msg.sh"
+else
+    _eips=$(command -v eips 2>/dev/null)
+    msg_show() { [ -n "$_eips" ] && "$_eips" 2 "$1" "$2" >/dev/null 2>&1; printf '[KUAL] %s\n' "$2" >&2; }
+    msg_wait() { msg_show 3 "Waiting... $*"; }
+    msg_info() { msg_show 3 "$*"; }
+    msg_ok()   { msg_show 4 "Done: $*"; }
+    msg_fail() { msg_show 4 "Failed: $*"; }
+fi
 
 US_ROOT=${US_ROOT:-/mnt/us}
 

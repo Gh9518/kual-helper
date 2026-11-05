@@ -1,4 +1,13 @@
 #!/bin/sh
+
+# 由 $0 的真实路径定位插件根目录（向上查找 config.xml），不依赖调用方的工作目录；
+# 找不到时回退到标准安装路径。KUAL_HOME 可由测试环境覆盖。
+_kh=$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd) || _kh=''
+case "$_kh" in ''|/) _kh=/mnt/us/extensions/helper ;; esac
+while [ "$_kh" != / ] && [ ! -f "$_kh/config.xml" ]; do _kh=$(dirname "$_kh"); done
+[ -f "$_kh/config.xml" ] || _kh=/mnt/us/extensions/helper
+KUAL_HOME=${KUAL_HOME:-$_kh}
+
 # 修复谷歌：自动从 GitHub 获取「国内可用的谷歌翻译 IP」列表，逐个测试可用性，
 #           按响应速度排序后写入 /etc/hosts（最快的生效，其余作备用注释）。
 # IP 列表源：hcfyapp/google-translate-cn-ip（社区维护，专供 translate.googleapis.com）
@@ -6,7 +15,22 @@
 # 备选源全部不可用时使用内置兜底列表，保证离线也能尝试。
 # 运行中提示与结束提示由 bin/msg.sh 统一给出。
 
-. ./bin/config.sh
+if [ -r "$KUAL_HOME/bin/config.sh" ]; then
+    . "$KUAL_HOME/bin/config.sh"
+else
+    KINDLE_PATH=/mnt/us
+    PYTHON3=$(command -v python3 2>/dev/null)
+    if [ -r "$KUAL_HOME/bin/msg.sh" ]; then
+        . "$KUAL_HOME/bin/msg.sh"
+    else
+        _eips=$(command -v eips 2>/dev/null)
+        msg_show() { [ -n "$_eips" ] && "$_eips" 2 "$1" "$2" >/dev/null 2>&1; printf '[KUAL] %s\n' "$2" >&2; }
+        msg_wait() { msg_show 3 "Waiting... $*"; }
+        msg_info() { msg_show 3 "$*"; }
+        msg_ok()   { msg_show 4 "Done: $*"; }
+        msg_fail() { msg_show 4 "Failed: $*"; }
+    fi
+fi
 
 TARGET_DOMAIN=translate.googleapis.com
 HOSTS_FILE=/etc/hosts
@@ -15,6 +39,8 @@ COMMENT="# Fix Google Translate CN"
 GREP_CMD=/bin/grep
 SED_CMD=/bin/sed
 CURL_CMD=/usr/bin/curl
+[ -x "$GREP_CMD" ] || GREP_CMD=$(command -v grep 2>/dev/null)
+[ -x "$SED_CMD" ]  || SED_CMD=$(command -v sed 2>/dev/null)
 [ -x "$CURL_CMD" ] || CURL_CMD=$(command -v curl 2>/dev/null)
 
 API='https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=fr&dt=t&dj=1&q=hello'
