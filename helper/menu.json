@@ -1,0 +1,183 @@
+{
+    "items": [
+        {
+            "name": "Helper",
+            "priority": -998,
+            "items": [
+                {
+                    "name": "System Tools",
+                    "priority": 1000,
+                    "items": [
+                        {
+                            "name": "禁用屏保",
+                            "priority": 1,
+                            "action": "./bin/ssprevent.sh",
+                            "exitmenu": false,
+                            "checked": true,
+                            "status": false,
+                            "if": "\"/mnt/us/extensions/helper/.screensaver_disabled\" -f !",
+                            "internal": "status Screen saver disabled"
+                        },
+                        {
+                            "name": "允许屏保",
+                            "priority": 2,
+                            "action": "./bin/ssallow.sh",
+                            "exitmenu": false,
+                            "checked": true,
+                            "status": false,
+                            "if": "\"/mnt/us/extensions/helper/.screensaver_disabled\" -f",
+                            "internal": "status Screen saver enabled"
+                        },
+                        {
+                            "name": "屏蔽商店",
+                            "priority": 3,
+                            "action": "./bin/do.sh toggle_store_button replace",
+                            "exitmenu": false,
+                            "checked": true,
+                            "status": false,
+                            "if": "\"/usr/share/webkit-1.0/pillow/javascripts/search_bar.js\" \"app://com.lab126.store\" -gg \"/usr/share/webkit-1.0/pillow/javascripts/search_bar.js.KUAL_bak\" -f ! &&"
+                        },
+                        {
+                            "name": "恢复商店",
+                            "priority": 4,
+                            "action": "./bin/do.sh toggle_store_button restore",
+                            "exitmenu": false,
+                            "checked": true,
+                            "status": false,
+                            "if": "\"/usr/share/webkit-1.0/pillow/javascripts/search_bar.js\" -f \"/usr/share/webkit-1.0/pillow/javascripts/search_bar.js.KUAL_bak\" -f &&"
+                        },
+                        {
+                            "name": "清理SDR",
+                            "priority": 5,
+                            "action": "./bin/sdr-cleaner/sdr_cleaner.sh --sdr --no-log",
+                            "exitmenu": true,
+                            "checked": false,
+                            "status": false,
+                            "internal": "status Unused SDR folders cleared."
+                        },
+                        {
+                            "name": "清理截图",
+                            "priority": 6,
+                            "action": "./bin/sdr-cleaner/sdr_cleaner.sh --shot --no-sdr --no-log",
+                            "exitmenu": true,
+                            "checked": false,
+                            "status": false,
+                            "internal": "status Screenshots cleared."
+                        },
+                        {
+                            "name": "清理日志",
+                            "priority": 7,
+                            "action": "./bin/clean_logs.sh",
+                            "exitmenu": true,
+                            "checked": false,
+                            "status": false,
+                            "internal": "status All log & crash files deleted."
+                        }
+                    ]
+                },
+                {
+                    "name": "Repair",
+                    "priority": 1010,
+                    "items": [
+                        {
+                            "name": "修复封面",
+                            "priority": 1,
+                            "action": "./bin/fix-cover/fix_cover.sh",
+                            "exitmenu": true,
+                            "checked": false,
+                            "status": false,
+                            "internal": "status Offline fix for all ebook covers."
+                        },
+                        {
+                            "name": "清理封面",
+                            "priority": 2,
+                            "action": "./bin/fix-cover/fix_cover.sh --clean",
+                            "exitmenu": true,
+                            "checked": false,
+                            "status": false,
+                            "internal": "status All invalid cover files deleted."
+                        },
+                        {
+                            "name": "联网修复封面",
+                            "priority": 3,
+                            "action": "./bin/fix-cover/fix_cover.sh --net --missing-only",
+                            "exitmenu": true,
+                            "checked": false,
+                            "status": false,
+                            "internal": "status Online fix for ebooks without a cover."
+                        },
+                        {
+                            "name": "修复谷歌",
+                            "priority": 4,
+                            "action": "./bin/fix-google-translate/fix_google_translate.sh",
+                            "exitmenu": true,
+                            "checked": false,
+                            "status": false,
+                            "internal": "status Fastest reachable Google Translate IP written to hosts."
+                        }
+                    ]
+                },
+                {
+                    "name": "Block Updates",
+                    "priority": 1020,
+                    "items": [
+                        {
+                            "name": "屏蔽更新",
+                            "priority": 1,
+                            "action": "./bin/block-ota/rename.sh",
+                            "exitmenu": true,
+                            "checked": false,
+                            "status": false,
+                            "internal": "status BlockKindleOTA enabled."
+                        },
+                        {
+                            "name": "恢复更新",
+                            "priority": 2,
+                            "action": "./bin/block-ota/restore.sh",
+                            "exitmenu": true,
+                            "checked": false,
+                            "status": false,
+                            "internal": "status BlockKindleOTA disabled & restored."
+                        },
+                        {
+                            "name": "锁定更新",
+                            "priority": 3,
+                            "action": "./bin/backdoorlock/lock.sh",
+                            "exitmenu": false,
+                            "checked": false,
+                            "status": false,
+                            "internal": "status Back Door Lock enabled."
+                        },
+                        {
+                            "name": "解锁更新",
+                            "priority": 4,
+                            "action": "./bin/backdoorlock/unlock.sh",
+                            "exitmenu": false,
+                            "checked": false,
+                            "status": false,
+                            "internal": "status Back Door Lock disabled & restored."
+                        },
+                        {
+                            "name": "删除更新",
+                            "priority": 5,
+                            "action": "./bin/backdoorlock/delete.sh",
+                            "exitmenu": false,
+                            "checked": false,
+                            "status": false,
+                            "internal": "status Existing update files deleted."
+                        }
+                    ]
+                },
+                {
+                    "name": "Check Update",
+                    "priority": 1030,
+                    "action": "./bin/github_update.sh",
+                    "exitmenu": true,
+                    "checked": false,
+                    "status": false,
+                    "internal": "status Check & update from GitHub."
+                }
+            ]
+        }
+    ]
+}

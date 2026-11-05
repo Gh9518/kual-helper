@@ -1,0 +1,43 @@
+#!/bin/sh
+
+LOG=$(dirname "$0")/update.log
+
+is_full_update() {
+    [ -n "$1" ] || return 0
+    VER=`dd if=$1 bs=1 count=2 | xargs`
+    if [ "$VER" == "FB" ]; then
+        return 1
+    else
+        return 0
+    fi
+}
+
+
+echo "=================================== $(date +"%Y-%m-%d %H:%M:%S") ===============================" >> $LOG
+echo "Command: '$0 $@'" >> $LOG
+echo >> $LOG
+echo "Update files in user store:" >> $LOG
+ls -l /mnt/us/?pdate_*.bin >> $LOG
+echo >> $LOG
+echo "About to install:" >> $LOG
+cat /tmp/.framework_update  >> $LOG
+echo >> $LOG
+
+if [ "$1" == "-i" ]
+then
+    echo "Immediate update (i.e. initiated by user), proceeding..." >> $LOG
+    exec /usr/sbin/updatewait $@
+else
+    echo "Pushed update (i.e. initiated by Amazon), denied..." >> $LOG
+    is_full_update $(cat /tmp/.framework_update 2>/dev/null)
+    IS_FULL_UPDATE=$?
+    if [ "$IS_FULL_UPDATE" == 1 ]
+    then
+        echo "Full update (rootfs & initramfs images), protecting from installing on reboot" >> $LOG
+        touch "/mnt/us/update__this-file-prevents-installing-on-reboot.bin"
+    fi
+    echo "Deleting temporary update pointer" >> $LOG
+    rm -f /tmp/.framework_update 2>/dev/null
+    [ -x "$(dirname "$0")/bin/lockstat.sh" ] && $(dirname "$0")/bin/lockstat.sh --alert
+fi
+echo >> $LOG

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<extension>
+    <information>
+        <name>Helper</name>
+        <version>1.6.0</version>
+        <author>整合自 helper / bookfere-tools / KUAL-add-ons</author>
+        <id>helper</id>
+    </information>
+    <menus>
+        <menu type="json" dynamic="true">menu.json</menu>
+    </menus>
+</extension>
