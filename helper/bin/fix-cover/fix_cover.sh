@@ -1,21 +1,13 @@
 #!/bin/sh
-
-#------------------------
-# bookfere.com (extended)
-#------------------------
+# 修复 / 清理电子书封面（不带日志）。
+# 运行中提示与结束提示由 bin/msg.sh 统一给出。
 
 . ./bin/config.sh
 
-print_err() {
-    print_log 4 'Unexpected error occurs.'
-}
-
 if [ ! -f "$PYTHON3" ]; then
-    print_log 3 'Need to install Python3 (>=3.5) on the Kindle.'
+    msg_fail "Python3 not found on Kindle"
     exit 0
 fi
-
-print_log 3 'Working...'
 
 # 解析 KUAL 传入的所有参数
 #   --clean         清理所有无效封面文件
@@ -35,15 +27,23 @@ for a in "$@"; do
     esac
 done
 
-$PYTHON3 $FIX_SCRIPT $KINDLE_PATH $ACTION $NET_FLAG $SPEED_FLAG $MISSING_FLAG
-if [ $? = 0 ]; then
-    if [ "$ACTION" = "-a clean" ]; then
-        print_log 4 'All invalid ebook covers were deleted.'
-    elif [ -n "$NET_FLAG" ]; then
-        print_log 4 'Online cover fix done (missing-cover ebooks only).'
-    else
-        print_log 4 'All damaged ebook covers were fixed.'
-    fi
+if [ "$ACTION" = "-a clean" ]; then
+    msg_wait "Cleaning invalid cover files"
+elif [ -n "$NET_FLAG" ]; then
+    msg_wait "Fetching missing covers online (may take a while)"
 else
-    print_err
+    msg_wait "Fixing damaged ebook covers"
+fi
+
+$PYTHON3 $FIX_SCRIPT $KINDLE_PATH $ACTION $NET_FLAG $SPEED_FLAG $MISSING_FLAG
+rc=$?
+
+if [ "$rc" -ne 0 ]; then
+    msg_fail "Cover tool error (rc=$rc)"
+elif [ "$ACTION" = "-a clean" ]; then
+    msg_ok "Invalid cover files cleared"
+elif [ -n "$NET_FLAG" ]; then
+    msg_ok "Online cover fix finished (missing covers only)"
+else
+    msg_ok "Ebook covers fixed"
 fi

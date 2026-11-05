@@ -4,6 +4,7 @@
 # IP 列表源：hcfyapp/google-translate-cn-ip（社区维护，专供 translate.googleapis.com）
 #   https://github.com/hcfyapp/google-translate-cn-ip
 # 备选源全部不可用时使用内置兜底列表，保证离线也能尝试。
+# 运行中提示与结束提示由 bin/msg.sh 统一给出。
 
 . ./bin/config.sh
 
@@ -47,7 +48,7 @@ WANT=3          # 找到这么多个可用 IP 就提前结束
 
 # CURL_CMD 可能为空（command -v 失败）或指向不可执行文件，任一情况都该停止。
 if [ -z "$CURL_CMD" ] || [ ! -x "$CURL_CMD" ]; then
-    print_log 3 '找不到 curl，无法逐个测试 IP。'
+    msg_fail "curl not found on Kindle"
     exit 0
 fi
 
@@ -67,15 +68,15 @@ if [ "$1" = "-d" ]; then
     mntroot rw 2>/dev/null
     clean_hosts
     mntroot ro 2>/dev/null
-    print_log 4 '已删除谷歌翻译 IP 规则。'
+    msg_ok "Google Translate hosts rule removed"
     exit 0
 fi
+
+msg_wait "Testing Google Translate IPs"
 
 #--------------------------------------------------------------
 # 1) 自动查找：逐个测速 GitHub 备选源，取最快且返回有效 IP 列表的那个
 #--------------------------------------------------------------
-print_log 3 '正在从 GitHub 获取可用 IP 列表...'
-
 BEST_TIME=999
 BEST_IPS=''
 for u in $IP_SOURCES; do
@@ -96,14 +97,14 @@ done
 
 if [ -n "$BEST_IPS" ]; then
     IP_LIST=$BEST_IPS
-    print_log 3 "已选最快源 (${BEST_TIME}s)。"
+    msg_info "Fastest IP source selected (${BEST_TIME}s)"
 else
     IP_LIST=$FALLBACK_IPS
-    print_log 3 'GitHub 源均不可达，改用内置候选 IP。'
+    msg_info "GitHub sources unreachable, using built-in IPs"
 fi
 
 TOTAL=$(printf '%s\n' "$IP_LIST" | $GREP_CMD -c '.')
-print_log 3 "共 $TOTAL 个候选 IP，开始逐个测试..."
+msg_info "Testing $TOTAL candidate IPs..."
 
 #--------------------------------------------------------------
 # 2) 逐个测试：真实请求翻译接口，只保留能返回译文的 IP，并记录耗时
@@ -132,7 +133,7 @@ FASTEST_TIME=$(printf '%s\n' "$RANKED" | $SED_CMD -n '1s/ .*//p')
 mntroot rw 2>/dev/null
 
 if [ -z "$FASTEST_IP" ]; then
-    print_log 3 "测试了 $TRIES 个 IP，均无响应，请检查网络后重试。"
+    msg_fail "No reachable IP ($TRIES tested, check network)"
     mntroot ro 2>/dev/null
     exit 0
 fi
@@ -154,6 +155,5 @@ clean_hosts
 } >> "$HOSTS_FILE"
 chmod 644 "$HOSTS_FILE" 2>/dev/null
 
-print_log 3 "写入最快 IP $FASTEST_IP (${FASTEST_TIME}s)；测试 $TRIES 个，可用 $FOUND 个。"
-print_log 4 'Done.'
 mntroot ro 2>/dev/null
+msg_ok "Fastest IP $FASTEST_IP written (${FASTEST_TIME}s, $FOUND/$TRIES ok)"

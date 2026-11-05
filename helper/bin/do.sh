@@ -1,9 +1,13 @@
 #!/bin/ash -
 # do.sh - KUAL add-ons processor by stepk, version 20130507,a
 # $Id: do.sh 13380 2016-07-19 01:01:28Z NiLuJe $
+# 改动：替换 / 恢复商店按钮时通过 bin/msg.sh 给出运行中提示与结果反馈；
+#       失败分支补上 mntroot ro，避免系统分区停留在可写状态。
 
 # kindle AWK is busybox AWK not gawk
 [ -f /bin/awk ] || alias awk='/bin/busybox awk'
+
+. ./bin/msg.sh
 
 CONFIGPATH="/mnt/us/extensions/KUAL.cfg"
 
@@ -53,7 +57,7 @@ store_button_filepath () { #{{{
 }
 #}}}
 screen_msg () { #{{{
-	eips 2 38 "${*}"
+	msg_show 3 "${*}"
 }
 #}}}
 
@@ -78,20 +82,26 @@ toggle_collation () { #{{{
 toggle_store_button () { #{{{
 # replace/restore FW 5.x Store button
 	local verb="${1}" btnpath="$(store_button_filepath)" bak
-	[ -e "${btnpath}" ] || return # unsupported platform
+	[ -e "${btnpath}" ] || { msg_fail "Store button file not found (unsupported firmware)"; return; }
 	bak="${btnpath}.KUAL_bak"
 	case "${verb}" in
 		"restore" )
-			[ -e "${bak}" ] || return # nothing to restore
-			mntroot rw && mv -f "${bak}" "${btnpath}"
-			mntroot ro
-			eips 2 5 -h " BUTTON RESTORED. PLEASE RESTART YOUR KINDLE." # or simply X
+			msg_wait "Restoring Store button"
+			[ -e "${bak}" ] || { msg_ok "Store button not replaced, nothing to restore"; return; }
+			if mntroot rw && mv -f "${bak}" "${btnpath}" ; then
+				mntroot ro
+				msg_ok "Store button restored - please restart your Kindle"
+			else
+				mntroot ro
+				msg_fail "Restore failed (mntroot/mv error)"
+			fi
 		;;
 		"replace" )
-			[ -e "$bak" ] && return # already replaced
+			msg_wait "Replacing Store button with KUAL"
+			[ -e "$bak" ] && { msg_ok "Store button already replaced"; return; }
 			local needle='app://com.lab126.store'
 			if ! grep -q -m 1 -F "${needle}" "${btnpath}" ; then
-				eips 5 5 -h " BUTTON UNCHANGED. ANOTHER APP HOLDS IT? "
+				msg_fail "Store button unchanged (target string not found)"
 				return
 			fi
 			local repl="$(KUAL_filepath)"
@@ -99,14 +109,20 @@ toggle_store_button () { #{{{
 				if mntroot rw && mv "${btnpath}" "${bak}" ; then
 					sed -re "s#([\"'])${needle}(['\"])#\1app://${repl}\2#" "${bak}" > "${btnpath}"
 					mntroot ro
-					eips 2 5 -h " BUTTON REPLACED. PLEASE RESTART YOUR KINDLE." # or simply X
+					msg_ok "Store button replaced - please restart your Kindle"
+				else
+					mntroot ro
+					msg_fail "Replace failed (mntroot/mv error)"
 				fi
 			else
-				[ -e "${repl}" ] || return # devs renamed KUAL file w/o notice
+				[ -e "${repl}" ] || { msg_fail "KUAL booklet/kindlet not found"; return; }
 				if mntroot rw && mv "${btnpath}" "${bak}" ; then
 					sed -re "s#([\"'])${needle}(['\"])#\1file://${repl}\2#" "${bak}" > "${btnpath}"
 					mntroot ro
-					eips 2 5 -h " BUTTON REPLACED. PLEASE RESTART YOUR KINDLE." # or simply X
+					msg_ok "Store button replaced - please restart your Kindle"
+				else
+					mntroot ro
+					msg_fail "Replace failed (mntroot/mv error)"
 				fi
 			fi
 		;;

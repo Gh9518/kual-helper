@@ -1,24 +1,38 @@
 #!/bin/sh
-
-#------------------------
-# bookfere.com
-#------------------------
+# 清理无用 SDR 文件夹 / 截图（不带日志）。
+# 运行中提示与结束提示由 bin/msg.sh 统一给出。
 
 . ./bin/config.sh
 
-print_log 3 'Working...'
+SHOT=0
+for a in "$@"; do
+    case "$a" in
+        --shot) SHOT=1 ;;
+    esac
+done
 
-if [ -f "$PYTHON2" ]; then
-    $PYTHON2 $SDR_SCRIPT "$@"
-elif [ -f "$PYTHON3" ]; then
-    $PYTHON3 $SDR_SCRIPT "$@"
+if [ "$SHOT" -eq 1 ]; then
+    msg_wait "Cleaning screenshots"
 else
-    print_log 4 'Need to install a Python on the Kindle.'
+    msg_wait "Cleaning unused SDR folders"
+fi
+
+RESULT=''
+if [ -f "$PYTHON2" ]; then
+    RESULT=$($PYTHON2 $SDR_SCRIPT "$@" 2>&1)
+    rc=$?
+elif [ -f "$PYTHON3" ]; then
+    RESULT=$($PYTHON3 $SDR_SCRIPT "$@" 2>&1)
+    rc=$?
+else
+    msg_fail "Python not found on Kindle"
     exit 0
 fi
 
-if [ $? = 0 ]; then
-    print_log 4 'Done.'
+if [ "$rc" -ne 0 ]; then
+    msg_fail "Cleaner error (rc=$rc)"
+elif [ -n "$RESULT" ]; then
+    msg_ok "$RESULT"
 else
-    print_log 4 'Unexpected error occurs.'
+    msg_ok "Clean finished"
 fi

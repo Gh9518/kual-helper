@@ -11,6 +11,9 @@ Usage:
     extracts it over <ext_path> (overwrite only, no deletion).
   * With --check it only reports the version difference and exits.
 
+All stdout lines are short English status lines: github_update.sh forwards
+them to eips, whose built-in font does not reliably render Chinese glyphs.
+
 Pure standard library (urllib/zipfile/shutil) so it runs on the Kindle's
 Python 3 without extra packages.
 """
@@ -111,9 +114,9 @@ def main():
         # 匿名 API 被限流 / 网络异常时，改用网页重定向兜底拿版本号。
         tag = latest_tag_via_web(repo) or ''
         if not tag:
-            print('获取最新版本失败: %s' % api_err)
+            print('Cannot get latest version: %s' % api_err)
             return 1
-        print('（API 不可用，已改用网页方式获取版本）')
+        print('API unavailable - using web fallback')
 
     dl = None
     for a in assets:
@@ -129,20 +132,21 @@ def main():
         # 兜底路径没有 assets 元数据，按 GitHub Release 固定规则拼接下载地址。
         dl = 'https://github.com/%s/releases/download/%s/%s' % (repo, tag, asset)
     if not dl:
-        print('发布中没有找到更新包（%s）' % asset)
+        print('Update package not found: %s' % asset)
         return 1
 
     cur = local_version(ext_path)
     latest = tag.lstrip('vV')
     if parse_version(latest) <= parse_version(cur):
-        print('已是最新版本 v%s' % cur)
+        print('Already up-to-date: v%s' % cur)
         return 0
 
-    print('发现新版本 v%s（当前 v%s）' % (latest, cur))
+    print('New version found: v%s (current v%s)' % (latest, cur))
     if check_only:
-        print('去掉 --check 参数即可执行更新')
+        print('Run without --check to apply the update')
         return 0
 
+    print('Downloading update package...')
     tmp = tempfile.mkdtemp(prefix='kual-upd-')
     zip_path = os.path.join(tmp, 'update.zip')
     payload = None
@@ -156,7 +160,7 @@ def main():
             last_err = e
     if not payload:
         shutil.rmtree(tmp, ignore_errors=True)
-        print('下载失败: %s（请检查网络后重试）' % last_err)
+        print('Download failed: %s (check network)' % last_err)
         return 1
     with open(zip_path, 'wb') as f:
         f.write(payload)
@@ -169,7 +173,7 @@ def main():
         for info in z.infolist():
             target = os.path.realpath(os.path.join(extract_dir, info.filename))
             if target != dest_root and not target.startswith(dest_root + os.sep):
-                print('更新包含非法路径，已拒绝安装: %s' % info.filename)
+                print('Unsafe path in package, install refused: %s' % info.filename)
                 shutil.rmtree(tmp, ignore_errors=True)
                 return 1
         z.extractall(extract_dir)
@@ -187,7 +191,7 @@ def main():
             shutil.copy2(os.path.join(root, fn), os.path.join(dest_root, fn))
 
     shutil.rmtree(tmp, ignore_errors=True)
-    print('已更新到 v%s，请在 KUAL 中刷新菜单' % latest)
+    print('Updated to v%s - please refresh KUAL menu' % latest)
     return 0
 
 

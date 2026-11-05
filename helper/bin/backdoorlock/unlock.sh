@@ -1,5 +1,8 @@
 #!/bin/sh
 # 解锁更新（backdoorlock 关闭并恢复）：还原 updater.conf 与 OTA 处理器。不带日志。
+. ./bin/msg.sh
+
+msg_wait "Disabling Back Door Lock"
 
 /usr/sbin/mntroot rw
 sed -i 's|^_UPDATE_WAIT=.*$|_UPDATE_WAIT="/usr/sbin/updatewait"|' /etc/updater.conf
@@ -9,3 +12,5 @@ then
 fi
 /usr/sbin/mntroot ro
 [ -f /etc/todo/handler_registry.conf ] && /sbin/restart todo
+
+msg_ok "Back Door Lock disabled"

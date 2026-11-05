@@ -9,8 +9,14 @@ KINDLE_PATH=/mnt/us
 SDR_SCRIPT=./bin/sdr-cleaner/sdr_cleaner.py
 FIX_SCRIPT=./bin/fix-cover/fix_cover.py
 
+# 统一屏幕反馈（Waiting / Done / Failed），见 bin/msg.sh
+. ./bin/msg.sh
+
+# 兼容旧写法：print_log <行号> <文本>
 print_log() {
-    eips 2 $1 "$2" &>/dev/null
+    _row=$1
+    shift
+    msg_show "$_row" "$*"
 }
 
 get_python() {

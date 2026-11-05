@@ -1,21 +1,16 @@
 #!/bin/sh
 # 删除更新：删除系统已有的 OTA 更新文件（sideload 的 update*.bin 与下载中的固件包）。
-# 不带日志，只在屏幕上给出结果。
+# 不带日志，只在屏幕给出运行中提示与结果。
+. ./bin/msg.sh
 
 US_ROOT=${US_ROOT:-/mnt/us}
 
-eips_msg() {
-    if [ -x /usr/sbin/eips ]; then
-        /usr/sbin/eips 2 3 "$1" >/dev/null 2>&1
-    else
-        eips 2 3 "$1" >/dev/null 2>&1
-    fi
-}
-
 cd "$US_ROOT" 2>/dev/null || {
-    eips_msg "无法访问 $US_ROOT"
+    msg_fail "Cannot access $US_ROOT"
     exit 0
 }
+
+msg_wait "Deleting downloaded update files"
 
 cnt=0
 for f in update*.bin Update*.bin FWUO*.partial; do
@@ -26,7 +21,7 @@ for f in update*.bin Update*.bin FWUO*.partial; do
 done
 
 if [ "$cnt" -gt 0 ]; then
-    eips_msg "已删除 $cnt 个更新文件"
+    msg_ok "$cnt update file(s) deleted"
 else
-    eips_msg "没有发现更新文件"
+    msg_ok "No update files found"
 fi

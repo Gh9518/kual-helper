@@ -55,7 +55,8 @@ def _has_book(stem, books):
 
 
 def clean_shots(kindle_path):
-    """清理根目录下的截图文件。"""
+    """清理根目录下的截图文件，返回删除数量。"""
+    n = 0
     for name in os.listdir(kindle_path):
         p = os.path.join(kindle_path, name)
         if not os.path.isfile(p):
@@ -64,12 +65,15 @@ def clean_shots(kindle_path):
            (name.startswith('wininfo_screenshot') and name.lower().endswith('.txt')):
             try:
                 os.remove(p)
+                n += 1
             except OSError:
                 pass
+    return n
 
 
 def clean_sdr(documents_path):
-    """删除没有对应电子书的 .sdr / .sdr.dir 文件夹。"""
+    """删除没有对应电子书的 .sdr / .sdr.dir 文件夹，返回删除数量。"""
+    n = 0
     for root, _dirs, files in os.walk(documents_path):
         books = set(files)
         for name in list(_dirs):
@@ -83,20 +87,23 @@ def clean_sdr(documents_path):
             if not _has_book(stem, books):
                 try:
                     shutil.rmtree(os.path.join(root, name))
+                    n += 1
                 except OSError:
                     pass
+    return n
 
 
 def onProcess(kindlePath, opts):
     documentsPath = os.path.join(kindlePath, 'documents')
     if not os.path.isdir(documentsPath):
-        return
-    if opts.get('shot'):
-        clean_shots(kindlePath)
-    if opts.get('sdr'):
-        clean_sdr(documentsPath)
+        return (0, 0)
+    shots = clean_shots(kindlePath) if opts.get('shot') else 0
+    sdr = clean_sdr(documentsPath) if opts.get('sdr') else 0
+    return (shots, sdr)
 
 
 if __name__ == '__main__':
     base = os.environ.get('SDRCLEANER_BASE', '/mnt/us/')
-    onProcess(base, parse_args(sys.argv))
+    shots, sdr = onProcess(base, parse_args(sys.argv))
+    # 一行英文汇总，供 eips 屏幕显示（eips 不保证支持中文字形）。
+    print('Removed %d screenshot(s), %d unused SDR folder(s)' % (shots, sdr))

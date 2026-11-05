@@ -5,7 +5,7 @@
             "priority": -998,
             "items": [
                 {
-                    "name": "System Tools",
+                    "name": "系统工具",
                     "priority": 1000,
                     "items": [
                         {
@@ -15,8 +15,7 @@
                             "exitmenu": false,
                             "checked": true,
                             "status": false,
-                            "if": "\"/mnt/us/extensions/helper/.screensaver_disabled\" -f !",
-                            "internal": "status Screen saver disabled"
+                            "internal": "status 已禁用屏保"
                         },
                         {
                             "name": "允许屏保",
@@ -25,17 +24,16 @@
                             "exitmenu": false,
                             "checked": true,
                             "status": false,
-                            "if": "\"/mnt/us/extensions/helper/.screensaver_disabled\" -f",
-                            "internal": "status Screen saver enabled"
+                            "internal": "status 已恢复屏保"
                         },
                         {
-                            "name": "屏蔽商店",
+                            "name": "替换商店",
                             "priority": 3,
                             "action": "./bin/do.sh toggle_store_button replace",
                             "exitmenu": false,
                             "checked": true,
                             "status": false,
-                            "if": "\"/usr/share/webkit-1.0/pillow/javascripts/search_bar.js\" \"app://com.lab126.store\" -gg \"/usr/share/webkit-1.0/pillow/javascripts/search_bar.js.KUAL_bak\" -f ! &&"
+                            "internal": "status 商店按钮已替换为 KUAL"
                         },
                         {
                             "name": "恢复商店",
@@ -44,7 +42,7 @@
                             "exitmenu": false,
                             "checked": true,
                             "status": false,
-                            "if": "\"/usr/share/webkit-1.0/pillow/javascripts/search_bar.js\" -f \"/usr/share/webkit-1.0/pillow/javascripts/search_bar.js.KUAL_bak\" -f &&"
+                            "internal": "status 商店按钮已恢复"
                         },
                         {
                             "name": "清理SDR",
@@ -53,7 +51,7 @@
                             "exitmenu": true,
                             "checked": false,
                             "status": false,
-                            "internal": "status Unused SDR folders cleared."
+                            "internal": "status 无用 SDR 文件夹已清理"
                         },
                         {
                             "name": "清理截图",
@@ -62,7 +60,7 @@
                             "exitmenu": true,
                             "checked": false,
                             "status": false,
-                            "internal": "status Screenshots cleared."
+                            "internal": "status 截图已清理"
                         },
                         {
                             "name": "清理日志",
@@ -71,12 +69,12 @@
                             "exitmenu": true,
                             "checked": false,
                             "status": false,
-                            "internal": "status All log & crash files deleted."
+                            "internal": "status 日志与崩溃文件已清理"
                         }
                     ]
                 },
                 {
-                    "name": "Repair",
+                    "name": "修复失效",
                     "priority": 1010,
                     "items": [
                         {
@@ -86,7 +84,7 @@
                             "exitmenu": true,
                             "checked": false,
                             "status": false,
-                            "internal": "status Offline fix for all ebook covers."
+                            "internal": "status 电子书封面修复完成"
                         },
                         {
                             "name": "清理封面",
@@ -95,7 +93,7 @@
                             "exitmenu": true,
                             "checked": false,
                             "status": false,
-                            "internal": "status All invalid cover files deleted."
+                            "internal": "status 无效封面文件已清理"
                         },
                         {
                             "name": "联网修复封面",
@@ -104,7 +102,7 @@
                             "exitmenu": true,
                             "checked": false,
                             "status": false,
-                            "internal": "status Online fix for ebooks without a cover."
+                            "internal": "status 联网补齐缺失封面完成"
                         },
                         {
                             "name": "修复谷歌",
@@ -113,12 +111,12 @@
                             "exitmenu": true,
                             "checked": false,
                             "status": false,
-                            "internal": "status Fastest reachable Google Translate IP written to hosts."
+                            "internal": "status 已写入最快的谷歌翻译 IP"
                         }
                     ]
                 },
                 {
-                    "name": "Block Updates",
+                    "name": "屏蔽更新",
                     "priority": 1020,
                     "items": [
                         {
@@ -128,7 +126,7 @@
                             "exitmenu": true,
                             "checked": false,
                             "status": false,
-                            "internal": "status BlockKindleOTA enabled."
+                            "internal": "status 已屏蔽系统更新（BlockKindleOTA）"
                         },
                         {
                             "name": "恢复更新",
@@ -137,7 +135,7 @@
                             "exitmenu": true,
                             "checked": false,
                             "status": false,
-                            "internal": "status BlockKindleOTA disabled & restored."
+                            "internal": "status 已恢复系统更新（BlockKindleOTA）"
                         },
                         {
                             "name": "锁定更新",
@@ -146,7 +144,7 @@
                             "exitmenu": false,
                             "checked": false,
                             "status": false,
-                            "internal": "status Back Door Lock enabled."
+                            "internal": "status 已锁定更新（Back Door Lock）"
                         },
                         {
                             "name": "解锁更新",
@@ -155,7 +153,7 @@
                             "exitmenu": false,
                             "checked": false,
                             "status": false,
-                            "internal": "status Back Door Lock disabled & restored."
+                            "internal": "status 已解锁更新（Back Door Lock）"
                         },
                         {
                             "name": "删除更新",
@@ -164,18 +162,18 @@
                             "exitmenu": false,
                             "checked": false,
                             "status": false,
-                            "internal": "status Existing update files deleted."
+                            "internal": "status 已删除设备上的更新文件"
                         }
                     ]
                 },
                 {
-                    "name": "Check Update",
+                    "name": "检查更新",
                     "priority": 1030,
                     "action": "./bin/github_update.sh",
                     "exitmenu": true,
                     "checked": false,
                     "status": false,
-                    "internal": "status Check & update from GitHub."
+                    "internal": "status 正在检查 GitHub 更新"
                 }
             ]
         }

@@ -2,23 +2,19 @@
 # 清理日志：删除 USB 可见区（/mnt/us）内的所有日志文件，以及 Kindle 5.16.x+
 # 生成的 4 类崩溃日志 / 转储文件：
 #   ① Indexer_Dump*   ② cvm_*（…juno…）  ③ KPPMainApp*   ④ Mesquite*
-# 并一并清理同类崩溃变体（*_crash_*、*.core、powerd_*/cmd_* 等）。
+# 并一并清理同类崩溃变体（*_crash_*、*.core、indexer*.dump* 等）。
 # 只按「文件名」匹配、大小写不敏感；不写任何日志文件，结果只在屏幕提示。
+
+. ./bin/msg.sh
 
 US_ROOT=${US_ROOT:-/mnt/us}
 
-eips_msg() {
-    if [ -x /usr/sbin/eips ]; then
-        /usr/sbin/eips 2 3 "$1" >/dev/null 2>&1
-    else
-        eips 2 3 "$1" >/dev/null 2>&1
-    fi
-}
-
 if [ ! -d "$US_ROOT" ]; then
-    eips_msg "无法访问 $US_ROOT"
+    msg_fail "Cannot access $US_ROOT"
     exit 0
 fi
+
+msg_wait "Cleaning log and crash files"
 
 # 判断文件名是否属于「日志 / 崩溃日志」，统一转小写后匹配（大小写不敏感）
 is_log_file() {
@@ -59,7 +55,7 @@ rm -f "$LIST"
 
 mb=$(awk "BEGIN{printf \"%.1f\", $bytes/1048576}")
 if [ "$cnt" -gt 0 ]; then
-    eips_msg "已清理 $cnt 个日志/崩溃文件，释放约 ${mb}MB"
+    msg_ok "$cnt log/crash file(s) removed, ${mb} MB freed"
 else
-    eips_msg "没有发现日志文件"
+    msg_ok "No log or crash files found"
 fi

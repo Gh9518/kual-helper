@@ -1,6 +1,27 @@
 #!/bin/sh
-# 允许屏保（恢复系统屏保 / 睡眠），并删除状态标记供 KUAL 菜单互斥显示。
-# 状态文件不存在 == 当前允许屏保，菜单将改显「禁用屏保」。
-STATE=${SS_STATE:-/mnt/us/extensions/helper/.screensaver_disabled}
-lipc-set-prop -i com.lab126.powerd preventScreenSaver 0
-rm -f "$STATE" 2>/dev/null
+# 允许屏保：恢复原始 helper 方案，直接通过 lipc 恢复 powerd 屏保。
+. ./bin/msg.sh
+
+LIPC=''
+if command -v lipc-set-prop >/dev/null 2>&1; then
+    LIPC=lipc-set-prop
+elif [ -x /usr/bin/lipc-set-prop ]; then
+    LIPC=/usr/bin/lipc-set-prop
+elif [ -x /usr/sbin/lipc-set-prop ]; then
+    LIPC=/usr/sbin/lipc-set-prop
+fi
+
+msg_wait "Enabling screen saver"
+
+if [ -z "$LIPC" ]; then
+    msg_fail "lipc-set-prop not found"
+    exit 0
+fi
+
+"$LIPC" -i com.lab126.powerd preventScreenSaver 0
+rc=$?
+if [ "$rc" -eq 0 ]; then
+    msg_ok "Screen saver enabled"
+else
+    msg_fail "lipc-set-prop failed (rc=$rc)"
+fi
