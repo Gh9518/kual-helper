@@ -1,4 +1,4 @@
-# KUAL Helper（单插件整合版 v1.8.0）
+# KUAL Helper（单插件整合版 v1.9.0）
 
 把原先分散在多个插件里的功能**全部整合为单一插件 `helper`**。安装文件夹名即 `helper`，
 直接作为 KUAL 的 **Helper** 菜单出现。
@@ -7,12 +7,12 @@
 - 中英双语发布说明：[RELEASE_NOTES.md](RELEASE_NOTES.md) ｜ 更新说明：[CHANGELOG.md](CHANGELOG.md) ｜ 致谢：[CREDITS.md](CREDITS.md)
 - 菜单里的「检查更新」会自动连接上述仓库的最新 Release 检查并安装更新。
 
-> v1.8.0 是**全功能修复版**：回到最初上传的原始插件逐项核对，修掉导致「所有菜单点击都无反应」
-> 的共性执行链问题（相对路径、工作目录、`source` 失败、可执行位假设）。17 个动作全部改为
-> **绝对路径 + 显式 `/bin/sh` 调用**，脚本自行定位插件根目录；同时删除点击后残留的勾选标记，
-> 屏保 / 商店不再出现「同时选中」的假状态。`Waiting...` / `Done:` / `Failed:` 反馈保持不变。
+> v1.9.0 给**全部 17 个动作**加上结构化运行日志：每次点击的「开始 / 成功 / 失败」与结果都会
+> 写入 `helper/logs/run-YYYYMMDD.log`，按天分文件，事后可确认是否真的执行成功。每次动作启动
+> 自动删除超过 3 天的旧日志，并受数量 / 单文件大小上限保护。
+> v1.8.0 已修复的「点击无反应」与屏保 / 商店「同时选中」问题保持不变。
 
-## 一、菜单结构（全部中文、无日志）
+## 一、菜单结构（全部中文）
 
 ```
 Helper                     (priority -998)
@@ -39,7 +39,7 @@ Helper                     (priority -998)
     └─ github_update.sh    点击 → 检测版本 → 有新版本才下载安装
 ```
 
-> 所有菜单项均**不带日志**：不生成任何日志文件，结果只在屏幕提示。
+> 每个动作除屏幕提示外，还会把「开始 / 成功 / 失败」写入插件运行日志，详见第十节。
 > `menu.json` 里 17 个 `action` 全部是**绝对路径**且以显式 `/bin/sh` 开头，例如
 > `/bin/sh /mnt/us/extensions/helper/bin/ssprevent.sh`。这样既不依赖 KUAL 调用时的工作
 > 目录，也不要求脚本带可执行位——这是 v1.8.0 修复「点击无反应」的关键。
@@ -127,7 +127,8 @@ Helper                     (priority -998)
 **安全性**
 - 只按**文件名**匹配、大小写不敏感（`Indexer_Dump` 与 `indexer_dump` 都能清）；
 - 不按内容或宽泛扩展名删除，电子书、普通文档、`DISABLE_CORE_DUMP` 等抑制文件均会保留；
-- 不动系统分区（`/var/log` 等），自身也不写日志，只在屏幕提示清理数量与释放空间。
+- 不动系统分区（`/var/log` 等）；结果同时在屏幕与运行日志留痕。本功能会**跳过**插件自身的
+  运行日志目录（`helper/logs/`），那里由第十节的保留策略单独管理。
 
 > 想从源头阻止崩溃日志再次生成，可在 U 盘根目录放一个**无扩展名**的空文件
 > `DISABLE_CORE_DUMP`（可选再加 `DISABLE_CORE_DUMP_ALERT`）；本功能负责清理已产生的文件。
@@ -192,7 +193,7 @@ Helper                     (priority -998)
 
 `github_update.sh` → `github_update.py`：通过 GitHub API 查最新 Release → 与本地 `VERSION`
 比对 → **仅当确实有新版本时**才下载 asset 并解压覆盖到扩展目录；已是最新则只提示，不下载。
-逐行显示版本状态（如 `Already up-to-date: v1.8.0` / `Downloading update package...` /
+逐行显示版本状态（如 `Already up-to-date: v1.9.0` / `Downloading update package...` /
 `Updated to v1.x.x - please refresh KUAL menu`），首尾各有 Waiting / Done 提示。
 
 - `bin/config.sh` 已指向正式仓库 `Gh9518/kual-helper`，资产名 `helper.zip`；
@@ -203,7 +204,7 @@ Helper                     (priority -998)
 
 把解压后的 `helper/` 复制到 Kindle 的 `/mnt/us/extensions/`，打开 KUAL 即出现 **Helper** 菜单。
 
-## 九、v1.8.0 执行链修复与本轮校验
+## 九、执行链修复（v1.8.0）与本轮校验
 
 **为什么会「每一项点击后都无反应」**：v1.7.0 的菜单用相对 `./bin/...` 调用脚本，脚本内部
 又用 `. ./bin/config.sh` / `. ./bin/msg.sh` 加载依赖，整套链路默认 KUAL 执行时的工作目录
@@ -232,3 +233,52 @@ BlockKindleOTA / backdoorlock 的菜单也只有 `name / priority / action / exi
   屏保 `preventScreenSaver 1/0`、商店 `search_bar.js` 改写与还原（含 `.KUAL_bak`）、
   日志删除、`/etc/hosts` 写入最快 IP、OTA 二进制改名与还原、backdoorlock 配置劫持与
   还原、更新包删除、更新检查执行。
+- **v1.9.0 新增**：17 个动作逐个校验运行日志增量（含 `START` 与 `OK` / `FAIL` 级别行）；
+  保留策略专项验证「5 / 4 天前删除、2 天前保留」、数量上限 10、单文件超 256KB 轮转；
+  「清理日志」专项验证插件运行日志目录被豁免、普通 `*.log` 仍被清理。
+
+## 十、运行日志与保留策略
+
+### 为什么改
+v1.8.0 及之前为追求「零写入」，动作只在屏幕显示 `Waiting... / Done: / Failed:`，提示一闪即逝，
+事后无法确认到底成功没有。v1.9.0 起改为**受控写入**：每个动作的运行结果落盘留存，并自动清理，
+不会无限堆积。
+
+### 位置与格式
+- 目录：`/mnt/us/extensions/helper/logs/`（USB 可见区，随插件一起安装 / 卸载）。
+- 文件：按天一个 `run-YYYYMMDD.log`，UTF-8 追加写，用文本编辑器直接打开即可。
+- 每行：`[YYYY-MM-DD HH:MM:SS] LEVEL 动作标识 | 结果文本`，例如：
+
+```
+[2026-11-06 16:36:44] START ssprevent.sh | Disabling screen saver
+[2026-11-06 16:36:44] OK    ssprevent.sh | Screen saver disabled
+[2026-11-06 16:36:44] START do.sh toggle_store_button replace | Replacing Store button with KUAL
+[2026-11-06 16:36:44] OK    do.sh toggle_store_button replace | Store button replaced - please restart your Kindle
+```
+
+- 级别：`START` 开始 / `INFO` 过程 / `OK` 成功 / `FAIL` 失败。
+- 判断方法：某动作只有 `START` 而没有 `OK` / `FAIL`，说明它没走到正常结束（中途退出或异常）；
+  `FAIL` 后面是失败原因，`OK` 后面是实际结果（删除数量、选中的 IP、版本状态等）。
+
+### 保留策略（每次动作启动执行一次）
+KUAL 插件没有独立的「开机」时机（动态菜单是静态 `menu.json`），因此把「每次启动」落实为
+**每次点击任意动作、脚本被启动时**，由 `bin/log.sh` 在加载时执行一次：
+
+| # | 规则 | 默认值 | 作用 |
+|---|---|---|---|
+| ① | 按文件修改时间删除 3 天前及更早的日志 | 保留最近 3 天 | 对应「超过 3 天之前的日志」 |
+| ② | 最多保留日志文件数 | 10 个 | 设备时钟回拨 / 异常时也不会堆积 |
+| ③ | 单个日志文件大小上限 | 256 KB | 超限轮转为 `run-YYYYMMDD.log.1` 再新建 |
+
+可用环境变量调整：`KUAL_LOG_KEEP_DAYS`、`KUAL_LOG_MAX_FILES`、`KUAL_LOG_MAX_BYTES`
+（一般无需改动）。日志目录不可写时静默跳过，**不影响动作本身**。
+
+### 推荐的清理逻辑（本版已采用）
+相比只做「启动时按天数删」这一种做法，本版采用组合策略，理由是：
+- **按天分文件**：可直接按文件名定位某一天，手动删除只需删对应文件，比在单个大文件里翻找方便；
+- **按修改时间删 + 数量上限兜底**：Kindle 时钟可能因没电 / 时区设置而不准，只看日期可能漏删或多删，
+  再加文件数上限就不会无限堆积；
+- **单文件大小上限**：避免某次动作异常循环输出把 U 盘写满；
+- **与「清理日志」菜单协调**：`清理日志` 清理 USB 可见区的 `*.log` 与崩溃转储，会**显式跳过**
+  `helper/logs/`，否则刚产生的运行日志会被自己的清理功能删掉。想手动清空运行日志，直接删除
+  `helper/logs/` 下的文件即可，下次点任意动作会自动重建。

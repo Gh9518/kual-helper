@@ -12,12 +12,14 @@ KUAL_HOME=${KUAL_HOME:-$_kh}
 if [ -r "$KUAL_HOME/bin/msg.sh" ]; then
     . "$KUAL_HOME/bin/msg.sh"
 else
+    _log_write() { return 0; }
+    [ -n "$KUAL_HOME" ] && [ -r "$KUAL_HOME/bin/log.sh" ] && . "$KUAL_HOME/bin/log.sh"
     _eips=$(command -v eips 2>/dev/null)
     msg_show() { [ -n "$_eips" ] && "$_eips" 2 "$1" "$2" >/dev/null 2>&1; printf '[KUAL] %s\n' "$2" >&2; }
-    msg_wait() { msg_show 3 "Waiting... $*"; }
-    msg_info() { msg_show 3 "$*"; }
-    msg_ok()   { msg_show 4 "Done: $*"; }
-    msg_fail() { msg_show 4 "Failed: $*"; }
+    msg_wait() { msg_show 3 "Waiting... $*"; _log_write START "$*"; }
+    msg_info() { msg_show 3 "$*"; _log_write INFO "$*"; }
+    msg_ok()   { msg_show 4 "Done: $*"; _log_write OK "$*"; }
+    msg_fail() { msg_show 4 "Failed: $*"; _log_write FAIL "$*"; }
 fi
 
 msg_wait "Enabling Back Door Lock"
