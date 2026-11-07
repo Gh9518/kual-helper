@@ -71,14 +71,39 @@ FALLBACK_IPS='142.250.4.90
 FETCH_TO=8      # 拉取 IP 列表超时
 CONNECT_TO=3    # 单个 IP 连接超时
 MAX_TO=6        # 单个 IP 总超时
-MAX_TRIES=18    # 最多测试多少个 IP（控制真机耗时）
+BATCH=6         # 每批并行测试多少个 IP
+MAX_TRIES=${KUAL_GT_MAX_TRIES:-0}   # 0 = 测试全部候选；并行分批控制总时长
 WANT=3          # 找到这么多个可用 IP 就提前结束
+case "$MAX_TRIES" in ''|*[!0-9]*) MAX_TRIES=0 ;; esac
 
 # CURL_CMD 可能为空（command -v 失败）或指向不可执行文件，任一情况都该停止。
 if [ -z "$CURL_CMD" ] || [ ! -x "$CURL_CMD" ]; then
     msg_fail "curl not found on Kindle"
     exit 0
 fi
+
+# 运行时防锁屏：逐个测 IP 在真机上可能持续数分钟，期间禁止 Kindle 休眠，
+# 避免脚本被冻结、WiFi 掉线导致测速中断。结束时自动恢复原状态。
+if [ -r "$KUAL_HOME/bin/nolock.sh" ]; then
+    . "$KUAL_HOME/bin/nolock.sh"
+else
+    nolock_begin() { return 0; }
+    nolock_end()   { return 0; }
+fi
+GT_TMPD=''
+GT_OWNDIR=1
+_gt_cleanup() {
+    nolock_end
+    if [ -n "$GT_TMPD" ]; then
+        # 自建目录可整体删除；若退化到 /tmp 本身，只删本进程的结果文件。
+        if [ "$GT_OWNDIR" = 1 ]; then
+            rm -rf "$GT_TMPD"
+        else
+            rm -f "$GT_TMPD"/r.$$.* 2>/dev/null
+        fi
+    fi
+    return 0
+}
 
 # 从 hosts 中清掉本工具写入的所有行，保留其它内容。
 # 所有自写行（标题/统计/生效/备用）都带 COMMENT 标记或域名，
@@ -101,6 +126,10 @@ if [ "$1" = "-d" ]; then
 fi
 
 msg_wait "Testing Google Translate IPs"
+
+nolock_begin
+trap '_gt_cleanup' EXIT
+trap 'exit 130' INT TERM HUP
 
 #--------------------------------------------------------------
 # 1) 自动查找：逐个测速 GitHub 备选源，取最快且返回有效 IP 列表的那个
@@ -132,27 +161,64 @@ else
 fi
 
 TOTAL=$(printf '%s\n' "$IP_LIST" | $GREP_CMD -c '.')
-msg_info "Testing $TOTAL candidate IPs..."
+if [ "$MAX_TRIES" -gt 0 ] && [ "$TOTAL" -gt "$MAX_TRIES" ]; then
+    msg_info "Testing up to $MAX_TRIES of $TOTAL IPs ($BATCH parallel)..."
+else
+    msg_info "Testing $TOTAL candidate IPs ($BATCH parallel)..."
+fi
 
 #--------------------------------------------------------------
-# 2) 逐个测试：真实请求翻译接口，只保留能返回译文的 IP，并记录耗时
+# 2) 并行分批测试：每个后台任务把「耗时 IP」写入临时文件。
+#    命中条件为 http_code=200 且响应正文含 bonjour（大小写不敏感），
+#    不再依赖固定的 "trans":"bonjour" 字段，避免接口格式变化造成假阴性。
+#    旧版串行只测前 18 个，这里覆盖全部候选；总耗时约为 总数/BATCH × 单次超时。
 #--------------------------------------------------------------
+GT_TMPD=/tmp/kual_gt_$$
+GT_OWNDIR=1
+mkdir -p "$GT_TMPD" 2>/dev/null || { GT_TMPD=/tmp; GT_OWNDIR=0; }
+
 RESULTS=''
 TRIES=0
 FOUND=0
-for ip in $IP_LIST; do
-    TRIES=$((TRIES + 1))
-    res=$($CURL_CMD -s --connect-timeout $CONNECT_TO --max-time $MAX_TO \
-        -w '\n%{time_total}' --resolve "$TARGET_DOMAIN:443:$ip" "$API" 2>/dev/null)
-    if printf '%s' "$res" | $GREP_CMD -q '"trans":"bonjour"'; then
-        t=$(printf '%s' "$res" | $SED_CMD -n '$p')
-        case "$t" in ''|*[!0-9.]*) t=9.999 ;; esac
-        RESULTS=$(printf '%s\n%s %s' "$RESULTS" "$t" "$ip")
+SEQ=0
+IN_BATCH=0
+
+_gt_collect() {
+    wait
+    for _f in "$GT_TMPD"/r.$$.*; do
+        [ -f "$_f" ] || continue
+        IFS=' ' read -r _gt_t _gt_ip < "$_f"
+        rm -f "$_f"
+        [ -n "$_gt_ip" ] || continue
+        RESULTS=$(printf '%s\n%s %s' "$RESULTS" "$_gt_t" "$_gt_ip")
         FOUND=$((FOUND + 1))
-        [ "$FOUND" -ge "$WANT" ] && break
-    fi
-    [ "$TRIES" -ge "$MAX_TRIES" ] && break
+    done
+    IN_BATCH=0
+    return 0
+}
+
+for ip in $IP_LIST; do
+    [ "$FOUND" -ge "$WANT" ] && break
+    if [ "$MAX_TRIES" -gt 0 ] && [ "$TRIES" -ge "$MAX_TRIES" ]; then break; fi
+    TRIES=$((TRIES + 1))
+    SEQ=$((SEQ + 1))
+    (
+        res=$($CURL_CMD -s --connect-timeout $CONNECT_TO --max-time $MAX_TO \
+            -w '\n%{http_code}|%{time_total}' \
+            --resolve "$TARGET_DOMAIN:443:$ip" "$API" 2>/dev/null)
+        meta=$(printf '%s' "$res" | $SED_CMD -n '$p')
+        body=$(printf '%s' "$res" | $SED_CMD '$d')
+        code=${meta%%|*}
+        gt_t=${meta##*|}
+        [ "$code" = 200 ] || exit 0
+        printf '%s' "$body" | $GREP_CMD -qi 'bonjour' || exit 0
+        case "$gt_t" in ''|*[!0-9.]*) gt_t=9.999 ;; esac
+        printf '%s %s\n' "$gt_t" "$ip" > "$GT_TMPD/r.$$.$SEQ.$ip"
+    ) &
+    IN_BATCH=$((IN_BATCH + 1))
+    [ "$IN_BATCH" -ge "$BATCH" ] && _gt_collect
 done
+_gt_collect
 
 RANKED=$(printf '%s\n' "$RESULTS" | $GREP_CMD -E '^[0-9]' | sort -n)
 FASTEST_IP=$(printf '%s\n' "$RANKED" | $SED_CMD -n '1s/^[^ ]* //p')
@@ -161,7 +227,7 @@ FASTEST_TIME=$(printf '%s\n' "$RANKED" | $SED_CMD -n '1s/ .*//p')
 mntroot rw 2>/dev/null
 
 if [ -z "$FASTEST_IP" ]; then
-    msg_fail "No reachable IP ($TRIES tested, check network)"
+    msg_fail "No reachable IP ($TRIES of $TOTAL tested, Google may be blocked on this network)"
     mntroot ro 2>/dev/null
     exit 0
 fi
@@ -185,3 +251,4 @@ chmod 644 "$HOSTS_FILE" 2>/dev/null
 
 mntroot ro 2>/dev/null
 msg_ok "Fastest IP $FASTEST_IP written (${FASTEST_TIME}s, $FOUND/$TRIES ok)"
+nolock_end

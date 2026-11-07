@@ -1,9 +1,9 @@
-# KUAL Helper v1.9.0 — 发布说明 / Release Notes
+# KUAL Helper v1.10.0 — 发布说明 / Release Notes
 
 > 单插件整合版 · 适用于 Kindle（KUAL / MRPI 环境） · 中文菜单 + 全动作屏幕反馈
 > Single-extension build · for Kindle with KUAL/MRPI · Chinese menus + on-screen feedback
 >
-> **v1.9.0 增加运行日志与自动保留策略 / v1.9.0 adds run logs with automatic retention**
+> **v1.10.0 真机日志查验、故障修复与运行时防锁屏 / v1.10.0: real-device log audit, bug fixes and no-lock-during-repair**
 
 ---
 
@@ -11,11 +11,12 @@
 
 ### 一句话简介
 把原先分散在多个 KUAL 扩展里的功能，全部收拢进**单一插件 `helper`**（直接作为 KUAL 的
-Helper 菜单）。v1.9.0 给**全部 17 个动作**加上结构化运行日志：每次点击的开始与结果都写入
-`helper/logs/run-YYYYMMDD.log`，按天分文件，事后可确认是否真的成功；每次动作启动自动删除
-超过 3 天的旧日志，并受数量与单文件大小上限保护。v1.8.0 完成的「所有动作点击无反应」修复
-与屏保 / 商店「同时选中」修复保持不变。全部菜单仍排在 MRPI 自动注入的
-`Install MR Packages` 之下，每个动作保留 `Waiting...` / `Done:` / `Failed:` 屏幕反馈。
+Helper 菜单）。**v1.10.0 依据一份真机运行日志逐项查验并修复两处故障**：「检查更新」在 Kindle
+老固件上因 CA 证书过期失败，「修复谷歌」提示测试 117 个候选 IP 却只测了前 18 个；同时为
+「修复失效」下全部 4 项增加**运行时禁止锁屏**，避免数分钟的封面 / 联网修复被休眠打断。
+v1.9.0 的结构化运行日志（按天分文件、3 天自动清理）与 v1.8.0 的执行链修复保持不变。
+全部菜单仍排在 MRPI 自动注入的 `Install MR Packages` 之下，每个动作保留
+`Waiting...` / `Done:` / `Failed:` 屏幕反馈。
 
 ### 菜单结构
 ```
@@ -57,19 +58,27 @@ Helper
   才下载 `helper.zip` 解压覆盖；已是最新则只提示，插件内无需任何 token。
 - **可控的运行日志**：全部动作写 `helper/logs/run-YYYYMMDD.log`，按天分文件、3 天自动清理；
   「清理日志」菜单会跳过该目录，避免误删。
+- **修复时禁止锁屏**：「修复失效」4 项运行时临时关闭休眠（并保住 WiFi），结束自动恢复，
+  不覆盖用户手动设置的屏保状态。
+- **兼容老固件**：「检查更新」遇到设备 CA 证书过期时降级重试，不再直接失败。
 
-### 本版变更（v1.9.0：运行日志与保留策略）
-- **全部 17 个动作增加运行日志**：结果不再一闪而过。`bin/msg.sh` 在输出屏幕提示的同时，把
-  `START` / `INFO` / `OK` / `FAIL` 写入新增的 `bin/log.sh` 管理的
-  `helper/logs/run-YYYYMMDD.log`；按天分文件、UTF-8 追加，含时间戳、动作标识与结果文本。
-  日志不可写时静默跳过，不影响动作本身。
-- **每次动作启动自动清理**：`bin/log.sh` 加载时删除 3 天前及更早的日志（保留最近 3 天），
-  并受「最多 10 个文件」与「单文件 256KB 轮转」两个上限保护。
-- **与「清理日志」协调**：`clean_logs.sh` 显式跳过 `helper/logs/`，避免误删刚产生的运行日志。
-- **降级分支同样写日志**：14 个动作脚本的 `msg.sh` 缺失兜底路径也接入 `log.sh`。
-- 版本号升至 v1.9.0，`config.xml` / `VERSION` / `README.md` / `CHANGELOG.md` 同步更新。
-- 上一版（v1.8.0）修复保持不变：17 个动作绝对路径 + 显式 `/bin/sh`、`KUAL_HOME` 自定位、
-  移除 `checked` / `internal`、修复 `do.sh` 去掉 `local` 引发的回归。
+### 本版变更（v1.10.0：真机日志查验、故障修复与运行时防锁屏）
+- **修复「检查更新」在老固件上失败**：真机日志报
+  `CERTIFICATE_VERIFY_FAILED ... unable to get local issuer certificate`。`github_update.py`
+  改为先正常校验 TLS，仅当错误属于证书类时降级为不校验 CA 重试（API 与网页重定向兜底
+  两条路径都覆盖），并在日志留提示；超时 / 403 等非证书错误不误判。下载包仍受 zip-slip
+  与 zip 结构校验约束。
+- **修复「修复谷歌」的候选覆盖与判定**：旧版提示「Testing 117 candidate IPs」却由
+  `MAX_TRIES=18` 只测前 18 个，前段 IP 失效即误判「No reachable IP」。本版改为**并行分批
+  （每批 6 个）覆盖全部候选**，判定放宽为 `http_code=200` 且响应含译文（不再依赖固定的
+  `"trans":"bonjour"` 字段），提示与实际测试数一致，失败时明确提示可能是网络阻断。
+- **「修复失效」4 项增加运行时禁止锁屏**：新增 `bin/nolock.sh`，动作开始时读取当前
+  `preventScreenSaver`，仅在原状态为 0 时临时设为 1，结束时恢复 0；用户已手动禁用屏保时
+  不改动、不恢复。异常退出由 `trap` 保证恢复。覆盖修复封面 / 清理封面 / 联网修复封面 /
+  修复谷歌，其余动作不受影响。`preventScreenSaver 1` 还能保持 WiFi 在线，对联网动作尤其关键。
+- 版本号升至 v1.10.0，`config.xml` / `VERSION` / `README.md` / `CHANGELOG.md` 同步更新。
+- 前两版修复保持不变：v1.9.0 的运行日志与 3 天保留策略；v1.8.0 的 17 个动作绝对路径 +
+  显式 `/bin/sh`、`KUAL_HOME` 自定位、移除 `checked` / `internal`、`do.sh` 回归修复。
 
 ### 安装
 1. 下载 `helper.zip`（或完整包 `extensions.zip`），解压得到 `helper/` 文件夹。
@@ -86,14 +95,20 @@ Helper
   `internal`；全部 `.sh` 通过 `sh -n`，9 个 `.py` 通过编译检查，无 BOM / CRLF。
 - **真机语义桩测 17/17**：从 `cwd='/'` 执行、脚本设为 `644` 无可执行位、不注入
   `KUAL_HOME` / `KUAL_LOG_*`，系统命令用 mock。17 个动作全部出现 `Waiting...` 与 `Done:`、
-  无 `Failed:`；逐项断言副作用，并新增校验每个动作的运行日志增量均含 `START` 与 `OK` 级别行。
-- **保留策略专项 5/5**：5 / 4 天前日志被删除、2 天前保留；数量上限 10 生效；单文件超 256KB
-  轮转为 `.1.log`；「清理日志」删除普通 `*.log` 但豁免 `helper/logs/`；日志原有记录保持。
+  无 `Failed:`；逐项断言副作用与运行日志增量，并新增校验「修复失效」4 项的
+  `preventScreenSaver 1 → 0` 设置与恢复、其余动作不触发屏保设置。
+- **专项 13/13**：保留策略 5 项（5/4 天前删除、2 天前保留、数量上限 10、256KB 轮转、
+  清理豁免 + 原记录保留）；用户已禁用屏保时不改写；30 个候选中仅第 25 个可用仍能找到；
+  响应体不含固定字段也能判定成功；提示与实际一致；真实证书错误可降级且超时 / 403 不误判。
+- **真机日志交叉验证**：`run-20261107.log` 中除两处已修的 `FAIL` 外，19 组动作均 `OK`；
+  逐项结论见 `README.md` 第十一节。
 
 ### 已知限制
 - 「屏蔽更新」「恢复更新」执行后设备会重启，属预期行为（重启前会停留 2 秒显示结果）。
 - `preventScreenSaver` 是运行时属性，Kindle 重启后会复位；需要时重新点一次「禁用屏保」。
 - 屏幕提示为英文，这是 Kindle `eips` 字体的限制，菜单本身仍是中文。
+- 「修复谷歌」依赖设备能访问 `translate.googleapis.com`；若网络本身阻断该服务，即使覆盖
+  全部候选 IP 也可能全部不可达，日志会提示 `Google may be blocked on this network`。
 - 多数 Kindle 固件对 sideload 的 PDF 不显示自定义封面，最稳妥仍是转换为 AZW3/EPUB。
 
 ### 致谢
@@ -107,13 +122,14 @@ backdoorlock、hcfyapp/google-translate-cn-ip 等项目和作者。
 
 ### Summary
 A single KUAL extension (`helper`) consolidating features previously scattered across several
-extensions into the **Helper menu**. **v1.9.0 adds structured run logs to all 17 actions**: the
-start and outcome of every tap are written to `helper/logs/run-YYYYMMDD.log`, one UTF-8 file per
-day, so success can be verified afterwards. Logs older than 3 days are pruned automatically on
-every action start, with caps on file count and per-file size. All v1.8.0 fixes (the
-"every action does nothing" execution-chain repair and the screensaver/store "both selected"
-state) are retained. Menus still render below the MRPI-injected `Install MR Packages`, and every
-action keeps `Waiting...` / `Done:` / `Failed:` on-screen feedback.
+extensions into the **Helper menu**. **v1.10.0 audits a real-device run log and fixes two
+failures**: "Check Update" failed on older Kindle firmware because its CA bundle is expired, and
+the Google fix advertised 117 candidate IPs while testing only the first 18. All four Repair
+actions now **temporarily disable the screen lock** for the duration of the run, so multi-minute
+cover / online repairs are no longer frozen by sleep. v1.9.0 run logs (one file per day, 3-day
+auto-pruning) and all v1.8.0 execution-chain fixes are retained. Menus still render below the
+MRPI-injected `Install MR Packages`, and every action keeps `Waiting...` / `Done:` / `Failed:`
+on-screen feedback.
 
 ### Menu
 ```
@@ -143,21 +159,33 @@ Helper
   `helper.zip` only when newer; no token is embedded in the extension.
 - **Managed run logs**: every action writes to `helper/logs/run-YYYYMMDD.log`, one file per day,
   auto-pruned after 3 days; the Clean Logs action skips this directory.
+- **No screen lock during repairs**: the four Repair actions temporarily disable sleep (keeping
+  WiFi alive too) and restore the previous state on exit; a user-set screensaver preference is
+  never overwritten.
+- **TLS fallback for older firmware**: the updater retries without CA verification only when the
+  device reports a certificate error; timeouts and HTTP 403 are never misclassified.
 
 ### Changes in this release
-- **Run logs for all 17 actions**: results no longer disappear when the screen message clears.
-  `bin/msg.sh` now also appends `START` / `INFO` / `OK` / `FAIL` lines to a new `bin/log.sh` that
-  manages `helper/logs/run-YYYYMMDD.log` — one UTF-8 file per day with timestamp, action id and
-  result text. Logging failures are silently ignored and never affect the action.
-- **Automatic retention on every action start**: `bin/log.sh` deletes logs older than 3 days
-  (keeps the last 3 days), with two extra caps — at most 10 files, and a 256 KB per-file rotation.
-- **Coordinated with the cleanup action**: `clean_logs.sh` explicitly skips `helper/logs/`, so the
-  Clean Logs action cannot delete the run logs it just produced.
-- **Fallback paths log as well**: the `msg.sh`-missing fallback in all 14 action scripts loads
-  `log.sh` too.
-- Version bumped to v1.9.0; `config.xml`, `VERSION`, `README.md` and `CHANGELOG.md` updated.
-- All v1.8.0 fixes are retained: absolute paths with explicit `/bin/sh`, `KUAL_HOME`
-  self-location, removal of `checked` / `internal`, and the `do.sh` `local` regression fix.
+- **Fixed "Check Update" on older firmware**: real-device logs showed
+  `CERTIFICATE_VERIFY_FAILED ... unable to get local issuer certificate`. `github_update.py`
+  now attempts normal TLS verification first and retries without CA verification only for
+  certificate-class errors (both the API call and the `/releases/latest` web fallback), leaving
+  a log line behind. Timeouts and HTTP 403 are never misclassified. Downloaded packages remain
+  protected by zip-slip and archive-structure checks.
+- **Fixed "Google Translate fix" candidate coverage**: the old build printed
+  "Testing 117 candidate IPs" but `MAX_TRIES=18` tested only the first 18, so a few dead IPs at
+  the top produced a false "No reachable IP". All candidates are now tested in parallel batches
+  of 6; an IP counts as working when `http_code=200` and the body contains a translation
+  (no longer tied to a fixed `"trans":"bonjour"` field). The prompt matches the actual count and
+  failures explicitly mention that the network may block Google.
+- **No screen lock during Repair actions**: new `bin/nolock.sh` reads the current
+  `preventScreenSaver`, temporarily sets it to 1 only when it was 0, and restores it on exit;
+  if the user already disabled the screensaver, nothing is changed or restored. `trap` covers
+  abnormal exits. Applies to all four Repair actions; other actions are unaffected.
+- Version bumped to v1.10.0; `config.xml`, `VERSION`, `README.md`, `CHANGELOG.md` updated.
+- All v1.9.0 and v1.8.0 fixes are retained (run logs with 3-day retention; absolute paths with
+  explicit `/bin/sh`, `KUAL_HOME` self-location, removal of `checked` / `internal`, and the
+  `do.sh` `local` regression fix).
 
 ### Install
 1. Download `helper.zip` (or the full `extensions.zip`) and unzip to get `helper/`.
@@ -174,17 +202,25 @@ new `helper.zip` also works.
   `internal`; every `.sh` passes `sh -n`, 9 `.py` files compile, no BOM / CRLF.
 - **Real-device-semantics harness: 17/17.** Executed from `cwd='/'`, scripts set to `644` (no
   executable bit), with no `KUAL_HOME` / `KUAL_LOG_*` injected and system commands mocked. All 17
-  actions emitted `Waiting...` and `Done:` with no `Failed:`; each side effect was asserted, and
-  each action's incremental log lines were checked to contain both `START` and `OK` levels.
-- **Retention suite: 5/5.** Logs from 5 / 4 days ago deleted, 2-day-old kept; file-count cap of
-  10 enforced; a file above 256 KB rotated to `.1.log`; Clean Logs removes ordinary `*.log` files
-  but exempts `helper/logs/`; existing log entries preserved.
+  actions emitted `Waiting...` and `Done:` with no `Failed:`; side effects and incremental run-log
+  lines asserted, plus new checks that the four Repair actions set and restore
+  `preventScreenSaver` while no other action touches it.
+- **Special suites: 13/13.** Retention (5/4-day deletion, 2-day keep, 10-file cap, 256 KB
+  rotation, Clean Logs exemption), no overwrite when the user already disabled the screensaver,
+  30 candidates with only the 25th reachable still succeed, relaxed response matching, prompt
+  accuracy, and real `CERTIFICATE_VERIFY_FAILED` triggering a TLS fallback without misclassifying
+  timeouts / 403.
+- **Cross-checked against a real-device log**: in `run-20261107.log`, all 19 action runs were
+  `OK` except the two failures fixed in this release; per-action conclusions are in
+  `README.md` section 11.
 
 ### Known limitations
 - OTA block/restore reboot the device (expected); the result message stays on screen for 2
   seconds before rebooting.
 - `preventScreenSaver` is a runtime property and resets after reboot — tap "禁用屏保" again.
 - On-screen prompts are English due to the `eips` font; the menus themselves are Chinese.
+- The Google fix needs reachability to `translate.googleapis.com`; if the network blocks it, no
+  candidate IP will work and the log says `Google may be blocked on this network`.
 - Most Kindle firmware does not show custom covers for sideloaded PDFs; converting to
   AZW3/EPUB remains the reliable option.
 

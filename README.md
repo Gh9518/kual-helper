@@ -1,4 +1,4 @@
-# KUAL Helper（单插件整合版 v1.9.0）
+# KUAL Helper（单插件整合版 v1.10.0）
 
 把原先分散在多个插件里的功能**全部整合为单一插件 `helper`**。安装文件夹名即 `helper`，
 直接作为 KUAL 的 **Helper** 菜单出现。
@@ -7,10 +7,11 @@
 - 中英双语发布说明：[RELEASE_NOTES.md](RELEASE_NOTES.md) ｜ 更新说明：[CHANGELOG.md](CHANGELOG.md) ｜ 致谢：[CREDITS.md](CREDITS.md)
 - 菜单里的「检查更新」会自动连接上述仓库的最新 Release 检查并安装更新。
 
-> v1.9.0 给**全部 17 个动作**加上结构化运行日志：每次点击的「开始 / 成功 / 失败」与结果都会
-> 写入 `helper/logs/run-YYYYMMDD.log`，按天分文件，事后可确认是否真的执行成功。每次动作启动
-> 自动删除超过 3 天的旧日志，并受数量 / 单文件大小上限保护。
-> v1.8.0 已修复的「点击无反应」与屏保 / 商店「同时选中」问题保持不变。
+> v1.10.0 依据一份**真机运行日志**逐项查验：修复「检查更新」在 Kindle 老固件上因 CA 证书
+> 过期失败、修复「修复谷歌」提示测 117 个却只测 18 个的问题；并为「修复失效」下全部 4 项
+> 增加**运行时禁止锁屏**，避免数分钟的封面 / 联网修复被休眠打断。
+> v1.9.0 的结构化运行日志（按天分文件、3 天自动清理）、v1.8.0 的「点击无反应」与
+> 屏保 / 商店「同时选中」修复均保持不变。
 
 ## 一、菜单结构（全部中文）
 
@@ -167,13 +168,29 @@ Helper                     (priority -998)
 
    6 个源全部不可达时，回退到脚本内置的一批静态候选 IP，保证离线也能尝试。
    需要增加备选源，直接在脚本顶部 `IP_SOURCES` 里按行添加 URL 即可。
-2. **逐个测试**：对每个候选 IP 用 `--resolve` 真实请求翻译接口，只保留能返回译文的 IP，
-   记录响应耗时；最多测试 18 个，找到 3 个可用即提前结束（控制真机耗时）。
+2. **并行分批测试**：对每个候选 IP 用 `--resolve` 真实请求翻译接口，每批 6 个并行，
+   只保留 `http_code=200` 且响应正文含译文的 IP，记录响应耗时；**覆盖全部候选**
+   （v1.10.0 起。旧版串行只测前 18 个，前面的 IP 恰好失效就会误判「无可用 IP」，
+   且提示写「Testing 117」与实际不符），找到 3 个可用即提前结束。判定不再依赖固定的
+   `"trans":"bonjour"` 字段，接口返回格式变化也不会造成假阴性。
 3. **写入 hosts**：按耗时排序，**最快的作为生效行**写入 `/etc/hosts`，其余可用 IP
    记为 `# backup ...` 注释备用；每次执行先清掉本工具旧规则，不污染其它 hosts 内容。
    结束时在屏幕显示选中的 IP、耗时与可用数量。
 
-> 该脚本依赖 `curl`（`/usr/bin/curl` 或 PATH 中），执行时需要 `mntroot rw`。
+### 运行时禁止锁屏（修复失效 4 项）
+真机日志显示「修复封面」约 7 分钟、「联网修复封面」约 7.5 分钟、「修复谷歌」约 1 分钟。
+Kindle 默认的屏保 / 自动休眠会冻结这些脚本，并让 WiFi 掉线导致联网动作中途失败。
+v1.10.0 起新增 `bin/nolock.sh`：动作开始时用 `lipc-get-prop` 读取当前
+`preventScreenSaver`，**仅在原状态为 0 时**临时设为 1（Kindle 官方的「禁止休眠和自动锁屏」
+开关，附带保持 WiFi 在线的效果），动作结束时恢复为 0；若用户已通过「禁用屏保」菜单设为 1，
+则**不改动、也不恢复**，绝不覆盖用户设置。异常退出由 `trap` 保证恢复。
+「修复封面 / 清理封面 / 联网修复封面 / 修复谷歌」4 项全部接入，其余动作不受影响。
+运行日志中会出现两条 `INFO` 行：`Screen saver suppressed during action` /
+`Screen saver restored after action`。
+
+> 「修复谷歌」依赖 `curl`（`/usr/bin/curl` 或 PATH 中），执行时需要 `mntroot rw`。
+> 若所在网络本身阻断 Google 服务，即使覆盖全部候选 IP 也可能一个都不可用；此时日志会明确
+> 提示 `Google may be blocked on this network`，属网络限制而非插件故障。
 
 ## 六、屏蔽更新：五个独立动作
 
@@ -193,11 +210,14 @@ Helper                     (priority -998)
 
 `github_update.sh` → `github_update.py`：通过 GitHub API 查最新 Release → 与本地 `VERSION`
 比对 → **仅当确实有新版本时**才下载 asset 并解压覆盖到扩展目录；已是最新则只提示，不下载。
-逐行显示版本状态（如 `Already up-to-date: v1.9.0` / `Downloading update package...` /
+逐行显示版本状态（如 `Already up-to-date: v1.10.0` / `Downloading update package...` /
 `Updated to v1.x.x - please refresh KUAL menu`），首尾各有 Waiting / Done 提示。
 
 - `bin/config.sh` 已指向正式仓库 `Gh9518/kual-helper`，资产名 `helper.zip`；
 - 匿名 API 被限流时用 `/releases/latest` 网页重定向兜底，下载失败自动重试一次；
+- **v1.10.0 起兼容老固件 CA 证书过期**：先正常校验 TLS，仅当报证书类错误时降级为不校验
+  CA 重试，并在日志留一行 `TLS verify unavailable on device - retrying without CA check`；
+  超时 / 403 等非证书错误不会被误判为证书问题。下载包仍受 zip-slip 与 zip 结构校验约束。
 - 插件内不需要任何 token。
 
 ## 八、使用方法
@@ -236,6 +256,10 @@ BlockKindleOTA / backdoorlock 的菜单也只有 `name / priority / action / exi
 - **v1.9.0 新增**：17 个动作逐个校验运行日志增量（含 `START` 与 `OK` / `FAIL` 级别行）；
   保留策略专项验证「5 / 4 天前删除、2 天前保留」、数量上限 10、单文件超 256KB 轮转；
   「清理日志」专项验证插件运行日志目录被豁免、普通 `*.log` 仍被清理。
+- **v1.10.0 新增**：「修复失效」4 项逐个断言 `preventScreenSaver 1 → 0` 的设置与恢复，
+  其余动作断言不触发屏保设置；专项验证「用户已禁用屏保时不改写」、30 个候选中仅第 25 个
+  可用仍能找到（旧版只测 18 个必然失败）、响应体不含固定字段也能判定成功，以及真机日志里
+  真实的 `CERTIFICATE_VERIFY_FAILED` 能触发 TLS 降级且超时 / 403 不误判。
 
 ## 十、运行日志与保留策略
 
@@ -259,6 +283,9 @@ v1.8.0 及之前为追求「零写入」，动作只在屏幕显示 `Waiting... 
 - 级别：`START` 开始 / `INFO` 过程 / `OK` 成功 / `FAIL` 失败。
 - 判断方法：某动作只有 `START` 而没有 `OK` / `FAIL`，说明它没走到正常结束（中途退出或异常）；
   `FAIL` 后面是失败原因，`OK` 后面是实际结果（删除数量、选中的 IP、版本状态等）。
+- **防锁屏痕迹**：「修复失效」4 项运行时会出现两条 `INFO` 行
+  （`Screen saver suppressed during action` / `Screen saver restored after action`）。
+  若只看到前者而没有后者，说明动作被强制中断且恢复未执行，手动点一次「允许屏保」即可。
 
 ### 保留策略（每次动作启动执行一次）
 KUAL 插件没有独立的「开机」时机（动态菜单是静态 `menu.json`），因此把「每次启动」落实为
@@ -282,3 +309,30 @@ KUAL 插件没有独立的「开机」时机（动态菜单是静态 `menu.json`
 - **与「清理日志」菜单协调**：`清理日志` 清理 USB 可见区的 `*.log` 与崩溃转储，会**显式跳过**
   `helper/logs/`，否则刚产生的运行日志会被自己的清理功能删掉。想手动清空运行日志，直接删除
   `helper/logs/` 下的文件即可，下次点任意动作会自动重建。
+
+## 十一、v1.10.0 真机日志查验结论
+
+依据用户提供的 `run-20261107.log`（2026-11-07，19 组动作）逐项核对：
+
+| 动作 | 日志结果 | 结论 |
+|---|---|---|
+| 禁用屏保 / 允许屏保 | `OK ... disabled` / `OK ... enabled` | 正常 |
+| 替换商店 | `OK Store button already replaced` | 正常，幂等保护生效（已替换时不再改写） |
+| 清理SDR | `OK Removed 0 screenshot(s), 0 unused SDR folder(s)` | 正常，当时无孤立 SDR 可清 |
+| 清理截图 | `OK Removed 11 screenshot(s)` | 正常 |
+| 清理日志 | `OK 2 log/crash file(s) removed, 0.0 MB freed` | 正常 |
+| 修复封面 | `OK Ebook covers fixed`（约 7 分钟） | 成功，但耗时长 → 本版增加运行时防锁屏 |
+| 清理封面 | `OK Invalid cover files cleared` | 正常 |
+| 屏蔽更新 | `OK OTA already blocked, nothing to do` | 正常，幂等保护生效 |
+| 恢复更新 / 锁定 / 解锁 / 删除更新 | 均 `OK` | 正常 |
+| 检查更新 | `FAIL` + `CERTIFICATE_VERIFY_FAILED` | **Bug**：设备 CA 证书过期 → 本版加 TLS 降级 |
+| 联网修复封面 | `OK Online cover fix finished`（约 7.5 分钟） | 成功，但耗时长 → 本版增加运行时防锁屏 |
+| 修复谷歌 | `FAIL No reachable IP (18 tested, check network)` | **Bug**：提示「Testing 117」却只测 18 个 → 本版并行覆盖全部候选、放宽判定、修正提示 |
+
+除两处 `FAIL` 外，17 个动作的反馈链路与副作用均已在真机上验证；日志本身也证明
+v1.9.0 的运行日志与 3 天保留策略工作正常（本文件即由该机制产生）。
+
+需如实说明：「修复谷歌」在部分网络环境下确实可能一个可用 IP 都没有（`translate.googleapis.com`
+本身被阻断）。本版把失败提示改为
+`No reachable IP (N of M tested, Google may be blocked on this network)`，
+明确区分「代码缺陷」与「网络限制」；若仍失败，请确认设备 WiFi 能访问外网。

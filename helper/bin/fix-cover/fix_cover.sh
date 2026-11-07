@@ -35,6 +35,15 @@ if [ ! -f "$PYTHON3" ]; then
     exit 0
 fi
 
+# 运行时防锁屏：封面修复 / 联网补封面在真机上可能持续数分钟，
+# 期间禁止 Kindle 休眠，避免脚本被冻结、WiFi 掉线。结束时自动恢复原状态。
+if [ -r "$KUAL_HOME/bin/nolock.sh" ]; then
+    . "$KUAL_HOME/bin/nolock.sh"
+else
+    nolock_begin() { return 0; }
+    nolock_end()   { return 0; }
+fi
+
 # 解析 KUAL 传入的所有参数
 #   --clean         清理所有无效封面文件
 #   --net           允许联网补齐封面
@@ -61,6 +70,10 @@ else
     msg_wait "Fixing damaged ebook covers"
 fi
 
+nolock_begin
+trap 'nolock_end' EXIT
+trap 'exit 130' INT TERM HUP
+
 $PYTHON3 $FIX_SCRIPT $KINDLE_PATH $ACTION $NET_FLAG $SPEED_FLAG $MISSING_FLAG
 rc=$?
 
@@ -73,3 +86,5 @@ elif [ -n "$NET_FLAG" ]; then
 else
     msg_ok "Ebook covers fixed"
 fi
+
+nolock_end

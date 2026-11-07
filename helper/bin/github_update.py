@@ -21,6 +21,7 @@ Python 3 without extra packages.
 import os
 import re
 import sys
+import ssl
 import json
 import shutil
 import tempfile
@@ -32,13 +33,47 @@ UA = 'kual-helper-updater'
 API = 'https://api.github.com/repos/%s/releases/latest'
 
 
+def _is_cert_error(exc):
+    """Kindle 老固件的 CA bundle 常过期 / 缺失，导致 CERTIFICATE_VERIFY_FAILED。
+
+    只把证书类错误识别为可降级，其它网络错误照常抛出（避免把限流、超时
+    误判成证书问题而反复无意义重试）。
+    """
+    s = str(exc).lower()
+    if 'certificate' in s and any(k in s for k in
+                                  ('verify', 'expired', 'self signed',
+                                   'unknown ca', 'unable to get local issuer')):
+        return True
+    return 'certificate_verify_failed' in s or 'cert_verify_failed' in s
+
+
+def _insecure_ctx():
+    try:
+        return ssl._create_unverified_context()
+    except Exception:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
+
+
 def http_get(url, timeout=15):
     req = urllib.request.Request(
         url,
         headers={'User-Agent': UA,
                  'Accept': 'application/vnd.github+json'})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return resp.read()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.read()
+    except Exception as exc:
+        if not _is_cert_error(exc):
+            raise
+        # 设备 CA 不可用时降级；提示会由 github_update.sh 转发到屏幕与运行日志，
+        # 用户能看出发生了降级。下载包仍受 zip-slip 与 zip 结构校验约束。
+        print('TLS verify unavailable on device - retrying without CA check')
+        with urllib.request.urlopen(req, timeout=timeout,
+                                    context=_insecure_ctx()) as resp:
+            return resp.read()
 
 
 def latest_tag_via_web(repo, timeout=15):
@@ -53,17 +88,25 @@ def latest_tag_via_web(repo, timeout=15):
         def redirect_request(self, req, fp, code, msg, headers, newurl):
             return None
 
-    opener = urllib.request.build_opener(_NoRedirect)
+    base_opener = urllib.request.build_opener(_NoRedirect)
+    insecure_opener = None
     req = urllib.request.Request(url, headers={'User-Agent': UA})
-    # 网络偶发抖动时重试一次，避免一次超时就判定更新失败。
-    for _attempt in range(2):
+    # 网络抖动重试；若遇到设备 CA 过期则切换到不校验 CA 的 opener 再试一次。
+    for _attempt in range(3):
+        opener = base_opener if insecure_opener is None else insecure_opener
         loc = ''
         try:
             resp = opener.open(req, timeout=timeout)
             loc = resp.headers.get('Location', '')
         except urllib.error.HTTPError as e:
             loc = e.headers.get('Location', '')   # 302 会以 HTTPError 抛出
-        except Exception:
+        except Exception as e:
+            if _is_cert_error(e) and insecure_opener is None:
+                insecure_opener = urllib.request.build_opener(
+                    _NoRedirect,
+                    urllib.request.HTTPSHandler(context=_insecure_ctx()))
+                print('TLS verify unavailable on device - web fallback skips CA check')
+                continue
             continue
         m = re.search(r'/releases/tag/(v?[0-9]+\.[0-9]+\.[0-9]+)', loc)
         if m:
