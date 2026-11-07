@@ -100,8 +100,8 @@ Helper
 - **专项 13/13**：保留策略 5 项（5/4 天前删除、2 天前保留、数量上限 10、256KB 轮转、
   清理豁免 + 原记录保留）；用户已禁用屏保时不改写；30 个候选中仅第 25 个可用仍能找到；
   响应体不含固定字段也能判定成功；提示与实际一致；真实证书错误可降级且超时 / 403 不误判。
-- **真机日志交叉验证**：`run-20261107.log` 中除两处已修的 `FAIL` 外，19 组动作均 `OK`；
-  逐项结论见 `README.md` 第十一节。
+- **真机日志交叉验证**：`run-20261107.log` 共 17 组动作，除两处已修的 `FAIL` 外，
+  其余 15 组均 `OK`；逐项结论见 `README.md` 第十一节。
 
 ### 已知限制
 - 「屏蔽更新」「恢复更新」执行后设备会重启，属预期行为（重启前会停留 2 秒显示结果）。
@@ -210,8 +210,8 @@ new `helper.zip` also works.
   30 candidates with only the 25th reachable still succeed, relaxed response matching, prompt
   accuracy, and real `CERTIFICATE_VERIFY_FAILED` triggering a TLS fallback without misclassifying
   timeouts / 403.
-- **Cross-checked against a real-device log**: in `run-20261107.log`, all 19 action runs were
-  `OK` except the two failures fixed in this release; per-action conclusions are in
+- **Cross-checked against a real-device log**: `run-20261107.log` contains 17 action runs;
+  15 were `OK` and the two failures are fixed in this release. Per-action conclusions are in
   `README.md` section 11.
 
 ### Known limitations

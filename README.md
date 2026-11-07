@@ -312,25 +312,27 @@ KUAL 插件没有独立的「开机」时机（动态菜单是静态 `menu.json`
 
 ## 十一、v1.10.0 真机日志查验结论
 
-依据用户提供的 `run-20261107.log`（2026-11-07，19 组动作）逐项核对：
+依据用户提供的 `run-20261107.log`（2026-11-07，共 37 行 / **17 组动作**：15 组 `OK`、2 组 `FAIL`、3 行 `INFO`）逐项核对：
 
 | 动作 | 日志结果 | 结论 |
 |---|---|---|
 | 禁用屏保 / 允许屏保 | `OK ... disabled` / `OK ... enabled` | 正常 |
 | 替换商店 | `OK Store button already replaced` | 正常，幂等保护生效（已替换时不再改写） |
+| 恢复商店 | 日志中未点击 | 本次未触发，非故障；改写与还原已由桩测覆盖 |
 | 清理SDR | `OK Removed 0 screenshot(s), 0 unused SDR folder(s)` | 正常，当时无孤立 SDR 可清 |
 | 清理截图 | `OK Removed 11 screenshot(s)` | 正常 |
 | 清理日志 | `OK 2 log/crash file(s) removed, 0.0 MB freed` | 正常 |
 | 修复封面 | `OK Ebook covers fixed`（约 7 分钟） | 成功，但耗时长 → 本版增加运行时防锁屏 |
 | 清理封面 | `OK Invalid cover files cleared` | 正常 |
-| 屏蔽更新 | `OK OTA already blocked, nothing to do` | 正常，幂等保护生效 |
+| 屏蔽更新 | 点击 2 次：`OK OTA already blocked` 与 `OK OTA binaries replaced, rebooting` | 正常，幂等保护与实际替换两条路径都执行过 |
 | 恢复更新 / 锁定 / 解锁 / 删除更新 | 均 `OK` | 正常 |
 | 检查更新 | `FAIL` + `CERTIFICATE_VERIFY_FAILED` | **Bug**：设备 CA 证书过期 → 本版加 TLS 降级 |
 | 联网修复封面 | `OK Online cover fix finished`（约 7.5 分钟） | 成功，但耗时长 → 本版增加运行时防锁屏 |
 | 修复谷歌 | `FAIL No reachable IP (18 tested, check network)` | **Bug**：提示「Testing 117」却只测 18 个 → 本版并行覆盖全部候选、放宽判定、修正提示 |
 
-除两处 `FAIL` 外，17 个动作的反馈链路与副作用均已在真机上验证；日志本身也证明
-v1.9.0 的运行日志与 3 天保留策略工作正常（本文件即由该机制产生）。
+日志覆盖 16 个菜单动作（「恢复商店」本次未点击，已由桩测单独覆盖）；除两处 `FAIL` 外，
+反馈链路与副作用均正常。日志本身也证明 v1.9.0 的运行日志与 3 天保留策略工作正常
+（本文件即由该机制产生）。
 
 需如实说明：「修复谷歌」在部分网络环境下确实可能一个可用 IP 都没有（`translate.googleapis.com`
 本身被阻断）。本版把失败提示改为
