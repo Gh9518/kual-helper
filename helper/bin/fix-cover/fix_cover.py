@@ -29,8 +29,21 @@ def main():
 
     args = parser.parse_args()
 
-    fix_cover = FixCover(logger=None, net=args.net, speed=args.speed,
-                         missing_only=args.missing_only)
+    def _progress_logger(text):
+        """Emit progress to stdout so the caller can capture it.
+
+        The KUAL shell wrapper keeps this in a temp file and only surfaces
+        the last lines when the process is killed (rc=137), which tells us
+        exactly which ebook exhausted the device's memory.
+        """
+        try:
+            print(text)
+            sys.stdout.flush()
+        except Exception:
+            pass
+
+    fix_cover = FixCover(logger=_progress_logger, net=args.net,
+                         speed=args.speed, missing_only=args.missing_only)
     fix_cover.handle(args.action, args.path)
 
 if __name__ == '__main__':

@@ -1,5 +1,41 @@
 # 更新说明 / Changelog
 
+## v1.10.1 — 2026-11-15
+
+**修复 / Fixed（离线「修复封面」被系统杀掉，rc=137）**
+- 依据三份真机日志（`run-20261114.log`、`run-20261115.log`、`run-20261115 (1).log`）：
+  「修复封面」连续 3 次 `FAIL ... rc=137`（SIGKILL），而同一天的「清理封面」与
+  「联网修复封面」均成功。137 是 Kindle **内存不足时 OOM killer** 的信号。
+- 根因：`KindleUnpack.Sectionizer` 用 `open().read()` 把**整本** MOBI/AZW3 读进内存，
+  逐本遍历全库时峰值内存取决于最大的那本书；一本超大 azw3 即触发 OOM。
+  而 `--missing-only` 跳过已有封面的书，恰好没碰到它，所以未复现——与日志现象吻合。
+- 改为**只读 mmap 按需映射**：只把实际访问的页计入 RSS，`close()` 立即释放映射；
+  `MOBIFile` 构造中途失败时自行清理，`check_file()` 改用上下文管理器关闭句柄。
+- 修正 `File.py` 中长期无效的 `bytes`/`str` 比较（FLIS/FCIS/FONT 等资源块与 EOF 标记），
+  避免把非图片资源逐块复制出来交给 `imghdr`，进一步减少无谓分配。
+- `FixCover.get_ebook_metadata()` 用 `try/finally` 保证每本书解析完即释放，
+  并在长循环中每 20 本 `gc.collect()` 一次。
+
+**新增 / Added（可诊断性）**
+- `fix_cover.py` 把进度输出到 stdout，由 `fix_cover.sh` 暂存到 `/tmp`；**仅在失败时**
+  把最后处理的书名写入运行日志（成功时静默丢弃，不增加日志量、不增加 U 盘写入）。
+- `rc=137` 单独识别，屏幕与日志提示 `Killed: low memory (rc=137), run Clean Invalid Covers first`，
+  不再笼统报 `Cover tool error`，下次再出问题可直接定位到具体 ebook。
+
+**校验 / Verified**
+- 专项桩测 16/16：语法 4 项、64MB 稀疏文件下 RSS 增量 **old 64.0MB → new 0.1MB**、
+  section 内容字节一致、map 可重复关闭、空文件降级、构造失败自发释放、
+  40 次失败解析 RSS 增长 0.0MB、shell 对 137 的处理与进度捕获。
+- 三份真机日志逐行核对：11-14 全部 `OK`；11-15 的 `rc=137` 三次集中在不带参数的全库
+  `fix`，`--clean` 与 `--net --missing-only` 正常；「修复谷歌」上午 117/117 不可达、
+  当晚找到 1 个可用 IP 并写入 hosts，判定逻辑工作正常，属网络波动非代码故障。
+
+**文档 / Docs**
+- `config.xml` / `VERSION` 升至 v1.10.1；`README.md` 新增第十二节；
+  `RELEASE_NOTES.md` 中英双语同步；两个 zip 重新打包。
+
+---
+
 ## v1.10.0 — 2026-11-07
 
 **查验 / Audit（真机运行日志）**

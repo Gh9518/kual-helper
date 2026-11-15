@@ -6,6 +6,7 @@ import re
 import sys
 import time
 import glob
+import gc
 import imghdr
 import string
 import tempfile
@@ -161,6 +162,7 @@ Feedback: %s' % (name, version, feedback)
 
         ext = os.path.splitext(path)[1].lower()
         if ext in ('.mobi', '.azw', '.azw3', '.azw4'):
+            mobi_file = None
             try:
                 mobi_file = MOBIFile(path)
                 ebook_asin = mobi_file.get_metadata('ASIN')
@@ -168,7 +170,15 @@ Feedback: %s' % (name, version, feedback)
                 ebook_cover = mobi_file.get_cover_image()
             except:
                 pass
+            finally:
+                # Release the per-book mapping immediately.  Waiting for the
+                # GC to collect it let memory pile up across a whole library
+                # and got the process killed (rc=137) on low-RAM devices.
+                if mobi_file is not None:
+                    mobi_file.close()
+                mobi_file = None
         elif ext == '.epub':
+            epub_file = None
             try:
                 epub_file = EPUBFile(path)
                 ebook_asin = epub_file.get_metadata('ASIN') \
@@ -177,6 +187,10 @@ Feedback: %s' % (name, version, feedback)
                 ebook_cover = epub_file.get_cover_image()
             except:
                 pass
+            finally:
+                if epub_file is not None:
+                    epub_file.close()
+                epub_file = None
         elif ext == '.pdf':
             try:
                 ebook_asin, ebook_type, ebook_cover = \
@@ -267,7 +281,12 @@ Feedback: %s' % (name, version, feedback)
 
 
     def fix_via_db(self, thumbnails_path):
-        for row in self.get_ebook_list_via_db():
+        _gc_every = 20
+        for _idx, row in enumerate(self.get_ebook_list_via_db()):
+            # Even with explicit close(), periodic collection keeps transient
+            # per-book objects from accumulating on a small-memory device.
+            if _idx and _idx % _gc_every == 0:
+                gc.collect()
             p_uuid, p_location, p_thumbnail, p_cde = row
             if not os.path.exists(p_location):
                 continue

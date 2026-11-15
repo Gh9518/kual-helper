@@ -34,10 +34,25 @@ import KindleUnpack
 class MOBIFile:
     def __init__(self, path):
         self.path = path
-        self.section = KindleUnpack.Sectionizer(self.path)
-        self.mh = [KindleUnpack.MobiHeader(self.section, 0)][0]
-        self.metadata = self.mh.getmetadata()
-        self.check_file()
+        self.section = None
+        try:
+            self.section = KindleUnpack.Sectionizer(self.path)
+            self.mh = [KindleUnpack.MobiHeader(self.section, 0)][0]
+            self.metadata = self.mh.getmetadata()
+            self.check_file()
+        except Exception:
+            # If parsing fails halfway through, the caller never receives
+            # the object and cannot call close(): release the mapping here.
+            self.close()
+            raise
+
+    def close(self):
+        """Release the section mapping as soon as this book is processed."""
+        try:
+            if self.section is not None:
+                self.section.close()
+        except Exception:
+            pass
 
     def check_file(self):
         if not os.path.isfile(self.path):
@@ -45,7 +60,8 @@ class MOBIFile:
         file_extension = os.path.splitext(self.path)[1].upper()
         if file_extension not in ['.MOBI', '.AZW', '.AZW3']:
             raise OSError('The specified file is not E-Book!')
-        mobi_header = open(self.path, 'rb').read(100)
+        with open(self.path, 'rb') as fh:
+            mobi_header = fh.read(100)
         palm_header = mobi_header[0:78]
         ident = palm_header[0x3C:0x3C+8]
         if ident != b'BOOKMOBI':
@@ -60,25 +76,16 @@ class MOBIFile:
         beg = self.mh.firstresource
         end = self.section.num_sections
         imgnames = []
+        # These section markers are bytes, not str: the old str comparisons
+        # were always False, so every resource block (fonts, FLIS/FCIS, ...)
+        # was copied out of the file and fed to imghdr for every book.  On a
+        # large KF8 book that is a lot of transient allocation.
+        non_images = (b'FLIS', b'FCIS', b'FDST', b'DATP',
+                      b'SRCS', b'CMET', b'FONT', b'RESC')
+        eof_marker = b'\xe9\x8e\r\n'
         for i in range(beg, end):
             data = self.section.load_section(i)
-            tmptype = data[0:4]
-            if tmptype in ["FLIS", "FCIS", "FDST", "DATP"]:
-                imgnames.append(None)
-                continue
-            elif tmptype == "SRCS":
-                imgnames.append(None)
-                continue
-            elif tmptype == "CMET":
-                imgnames.append(None)
-                continue
-            elif tmptype == "FONT":
-                imgnames.append(None)
-                continue
-            elif tmptype == "RESC":
-                imgnames.append(None)
-                continue
-            if data == chr(0xe9) + chr(0x8e) + "\r\n":
+            if data[:4] in non_images or data == eof_marker:
                 imgnames.append(None)
                 continue
             imgtype = what(None, data)

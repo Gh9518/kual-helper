@@ -1,4 +1,4 @@
-# KUAL Helper（单插件整合版 v1.10.0）
+# KUAL Helper（单插件整合版 v1.10.1）
 
 把原先分散在多个插件里的功能**全部整合为单一插件 `helper`**。安装文件夹名即 `helper`，
 直接作为 KUAL 的 **Helper** 菜单出现。
@@ -7,6 +7,9 @@
 - 中英双语发布说明：[RELEASE_NOTES.md](RELEASE_NOTES.md) ｜ 更新说明：[CHANGELOG.md](CHANGELOG.md) ｜ 致谢：[CREDITS.md](CREDITS.md)
 - 菜单里的「检查更新」会自动连接上述仓库的最新 Release 检查并安装更新。
 
+> v1.10.1 依据三份真机日志修复「修复封面」被 OOM killer 杀掉（`rc=137`）的问题：
+> 把整本电子书读入内存改为**只读 mmap 按需映射**，并在每本书处理完后立即释放；
+> 同时让失败日志能指出具体是哪本书。详见第十二节。
 > v1.10.0 依据一份**真机运行日志**逐项查验：修复「检查更新」在 Kindle 老固件上因 CA 证书
 > 过期失败、修复「修复谷歌」提示测 117 个却只测 18 个的问题；并为「修复失效」下全部 4 项
 > 增加**运行时禁止锁屏**，避免数分钟的封面 / 联网修复被休眠打断。
@@ -338,3 +341,37 @@ KUAL 插件没有独立的「开机」时机（动态菜单是静态 `menu.json`
 本身被阻断）。本版把失败提示改为
 `No reachable IP (N of M tested, Google may be blocked on this network)`，
 明确区分「代码缺陷」与「网络限制」；若仍失败，请确认设备 WiFi 能访问外网。
+
+## 十二、v1.10.1 真机日志查验结论（封面修复 rc=137）
+
+依据三份真机日志逐行核对：
+
+| 日志 | 现象 | 结论 |
+|---|---|---|
+| `run-20261114.log` | 10 行，删除更新 / 屏蔽更新 / 锁定 / 解锁全部 `OK` | 屏蔽更新相关功能正常 |
+| `run-20261115 (1).log` | 「修复封面」2 次 `FAIL ... rc=137`；「清理封面」「清理SDR」「联网修复封面」`OK` | **Bug**：仅不带参数的全库 `fix` 被 OOM killer 杀掉 |
+| `run-20261115.log` | 「修复封面」再次 `FAIL rc=137`；「修复谷歌」`OK`（1/117 可用 IP）、清理类全 `OK` | 复现同一 Bug；网络类动作正常 |
+
+**根因**：`KindleUnpack.Sectionizer` 用 `open().read()` 把整本 MOBI/AZW3 完整读进内存。
+逐本遍历全库时，峰值内存由**最大的那本书**决定；一本超大 azw3 就足以让 Kindle 触发
+OOM killer（SIGKILL → 退出码 137）。而「联网修复封面」带 `--missing-only`，跳过了已有
+正常缩略图的书，恰好没处理到那本超大文件，因此没有复现——这与日志现象完全吻合。
+
+**修复内容**：
+
+1. `KindleUnpack.Sectionizer` 改为**只读 mmap**：只把实际访问的页计入 RSS，不再整体
+   复制文件；`close()` 立即释放映射，`MOBIFile` 构造中途失败也自行清理。
+2. 修正 `File.py` 中长期无效的 `bytes`/`str` 比较：FLIS/FCIS/FONT/RESC 等资源块和 EOF
+   标记原本永远匹配不上，导致每本书都把非图片资源逐块复制出来交给 `imghdr`，浪费内存。
+3. `FixCover.get_ebook_metadata()` 用 `try/finally` 每本书用完即释放；长循环每 20 本
+   `gc.collect()` 一次；`check_file()` 改用上下文管理器关闭句柄。
+4. **可诊断性**：`fix_cover.py` 输出进度到临时文件，`fix_cover.sh` 仅在失败时把最后处理的
+   书名写入运行日志（成功时静默丢弃，不增加 U 盘写入）；`rc=137` 单独识别并提示
+   `Killed: low memory (rc=137), run Clean Invalid Covers first`。
+
+**校验**：专项桩测 16/16。关键指标——64MB 稀疏文件下 RSS 增量由 **64.0MB 降为 0.1MB**，
+40 次失败解析 RSS 增长 0.0MB，`load_section()` 输出与原始读取字节完全一致。
+
+**关于「修复谷歌」上午失败**：11-15 10:17 显示 `No reachable IP (117 of 117 tested)`，
+同日 19:08 同一脚本找到 1 个可用 IP 并写入 `/etc/hosts`。判定逻辑正常（返回值、响应体
+校验均生效），属网络环境波动，非代码 Bug；本次未改动该处。

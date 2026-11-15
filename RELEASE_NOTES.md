@@ -1,9 +1,11 @@
-# KUAL Helper v1.10.0 — 发布说明 / Release Notes
+# KUAL Helper v1.10.1 — 发布说明 / Release Notes
 
 > 单插件整合版 · 适用于 Kindle（KUAL / MRPI 环境） · 中文菜单 + 全动作屏幕反馈
 > Single-extension build · for Kindle with KUAL/MRPI · Chinese menus + on-screen feedback
 >
-> **v1.10.0 真机日志查验、故障修复与运行时防锁屏 / v1.10.0: real-device log audit, bug fixes and no-lock-during-repair**
+> **v1.10.1 修复「修复封面」OOM（rc=137）/ v1.10.1: fixed the cover-repair OOM kill (rc=137)**
+>
+> 上一版 v1.10.0：真机日志查验、故障修复与运行时防锁屏 / v1.10.0: real-device log audit, bug fixes and no-lock-during-repair
 
 ---
 
@@ -62,7 +64,18 @@ Helper
   不覆盖用户手动设置的屏保状态。
 - **兼容老固件**：「检查更新」遇到设备 CA 证书过期时降级重试，不再直接失败。
 
-### 本版变更（v1.10.0：真机日志查验、故障修复与运行时防锁屏）
+### 本版变更（v1.10.1：修复封面 OOM）
+
+- **修复 `rc=137`**：三份真机日志显示不带参数的「修复封面」连续 3 次被 SIGKILL，而
+  「清理封面」「联网修复封面」正常。根因是 `Sectionizer` 用 `open().read()` 把整本电子书
+  读进内存，一本超大 azw3 即耗尽 Kindle 内存。改为**只读 mmap 按需映射**，用完立即 `close()`；
+  构造失败自清理，并修正长期无效的 `bytes`/`str` 资源块比较，减少无谓复制。
+- **可诊断性**：`fix_cover.py` 输出进度到临时文件，仅失败时把最后处理的书名写入运行日志
+  （成功时静默丢弃）；`rc=137` 单独提示 `Killed: low memory`，下次可直接定位到具体书籍。
+- 专项桩测 16/16：64MB 文件 RSS 增量 **64.0MB → 0.1MB**，40 次失败解析 RSS 增长 0.0MB。
+- 「修复谷歌」上午全失败、当晚成功属网络波动，判定逻辑正常，未改动。
+
+### 上一版变更（v1.10.0：真机日志查验、故障修复与运行时防锁屏）
 - **修复「检查更新」在老固件上失败**：真机日志报
   `CERTIFICATE_VERIFY_FAILED ... unable to get local issuer certificate`。`github_update.py`
   改为先正常校验 TLS，仅当错误属于证书类时降级为不校验 CA 重试（API 与网页重定向兜底
@@ -165,7 +178,23 @@ Helper
 - **TLS fallback for older firmware**: the updater retries without CA verification only when the
   device reports a certificate error; timeouts and HTTP 403 are never misclassified.
 
-### Changes in this release
+### Changes in v1.10.1
+
+- **Fixed `rc=137`**: three real-device logs show the plain "Fix Covers" action SIGKILLed
+  three times, while "Clean Covers" and "Online Cover Fix" succeeded. Root cause:
+  `Sectionizer` used `open().read()` to load an entire ebook into RAM, so a single large azw3
+  exhausted the Kindle's memory. It now uses a **read-only mmap** and `close()`s each book
+  immediately; partial construction cleans up after itself, and previously dead `bytes`/`str`
+  comparisons for resource blocks were corrected to avoid needless copying.
+- **Diagnosability**: `fix_cover.py` emits progress to a temp file; the shell wrapper writes
+  the last processed book into the run log **only on failure** (silently discarded on success).
+  `rc=137` now reports `Killed: low memory` instead of a generic tool error.
+- 16/16 stub tests pass: RSS growth for a 64MB file dropped from **64.0MB to 0.1MB**; 40 failed
+  parses grew RSS by 0.0MB.
+- The Google fix failing in the morning but succeeding later the same day is a network issue;
+  its validation logic is correct and was left unchanged.
+
+### Previous release (v1.10.0) changes
 - **Fixed "Check Update" on older firmware**: real-device logs showed
   `CERTIFICATE_VERIFY_FAILED ... unable to get local issuer certificate`. `github_update.py`
   now attempts normal TLS verification first and retries without CA verification only for

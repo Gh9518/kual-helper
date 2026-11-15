@@ -20,11 +20,37 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import struct
+import mmap
 
 
 class Sectionizer:
+    """MOBI section table with a low-memory file mapping.
+
+    The original code did ``self.data = open(filename, 'rb').read()``, which
+    loads the *whole* ebook into anonymous memory.  Fixing covers over a
+    whole library repeats that once per book, so a single large azw3 is
+    enough to exceed a Kindle's available RAM and get the process SIGKILLed
+    (exit code 137).  A read-only mmap only faults in pages that are actually
+    accessed, and close() releases the mapping deterministically instead of
+    waiting for GC.  load_section() still returns bytes, so callers are
+    unaffected.
+    """
     def __init__(self, filename):
-        self.data = open(filename, 'rb').read()
+        self._fh = open(filename, 'rb')
+        self.data = None
+        try:
+            # Empty files (and very old Pythons) cannot be mapped; the
+            # fallback below keeps the previous behaviour for those cases.
+            self.data = mmap.mmap(self._fh.fileno(), 0,
+                                  access=mmap.ACCESS_READ)
+        except Exception:
+            pass
+        if self.data is None:
+            try:
+                self.data = self._fh.read()
+            finally:
+                self._fh.close()
+                self._fh = None
         self.palmheader = self.data[:78]
         self.palmname = self.data[:32]
         self.ident = self.palmheader[0x3C:0x3C+8]
@@ -47,6 +73,26 @@ class Sectionizer:
     def load_section(self, section):
         before, after = self.sectionoffsets[section:section+2]
         return self.data[before:after]
+
+    def close(self):
+        """Release the mapping / file handle as soon as this book is done.
+
+        Safe to call more than once.  Being explicit matters here: relying
+        on the garbage collector to reclaim tens of megabytes per book is
+        exactly what caused the out-of-memory kill on the device.
+        """
+        try:
+            if self.data is not None and hasattr(self.data, 'close'):
+                self.data.close()
+        except Exception:
+            pass
+        try:
+            if self._fh is not None:
+                self._fh.close()
+        except Exception:
+            pass
+        self.data = None
+        self._fh = None
 
 
 class MobiHeader:

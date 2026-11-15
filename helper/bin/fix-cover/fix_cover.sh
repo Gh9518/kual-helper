@@ -74,11 +74,22 @@ nolock_begin
 trap 'nolock_end' EXIT
 trap 'exit 130' INT TERM HUP
 
-$PYTHON3 $FIX_SCRIPT $KINDLE_PATH $ACTION $NET_FLAG $SPEED_FLAG $MISSING_FLAG
+# Progress goes to a temp file: on success it is discarded silently, but if
+# the tool is killed (rc=137 = SIGKILL, i.e. the Kindle OOM killer) the last
+# processed book is written to the run log so the culprit can be identified.
+COV_OUT=/tmp/kual_cover_progress_$$
+$PYTHON3 $FIX_SCRIPT $KINDLE_PATH $ACTION $NET_FLAG $SPEED_FLAG $MISSING_FLAG \
+    > "$COV_OUT" 2>&1
 rc=$?
 
 if [ "$rc" -ne 0 ]; then
-    msg_fail "Cover tool error (rc=$rc)"
+    _last=$(grep -v '^---' "$COV_OUT" 2>/dev/null | tail -n 2 | tr '\n' ' ')
+    [ -n "$_last" ] && msg_info "Last processed: $_last"
+    if [ "$rc" -eq 137 ]; then
+        msg_fail "Killed: low memory (rc=137), run Clean Invalid Covers first"
+    else
+        msg_fail "Cover tool error (rc=$rc)"
+    fi
 elif [ "$ACTION" = "-a clean" ]; then
     msg_ok "Invalid cover files cleared"
 elif [ -n "$NET_FLAG" ]; then
@@ -86,5 +97,6 @@ elif [ -n "$NET_FLAG" ]; then
 else
     msg_ok "Ebook covers fixed"
 fi
+rm -f "$COV_OUT"
 
 nolock_end
