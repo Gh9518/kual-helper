@@ -1,12 +1,16 @@
 #!/bin/sh
 
-# 由 $0 的真实路径定位插件根目录（向上查找 config.xml），不依赖调用方的工作目录；
-# 找不到时回退到标准安装路径。KUAL_HOME 可由测试环境覆盖。
-_kh=$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd) || _kh=''
-case "$_kh" in ''|/) _kh=/mnt/us/extensions/helper ;; esac
-while [ "$_kh" != / ] && [ ! -f "$_kh/config.xml" ]; do _kh=$(dirname "$_kh"); done
-[ -f "$_kh/config.xml" ] || _kh=/mnt/us/extensions/helper
-KUAL_HOME=${KUAL_HOME:-$_kh}
+# 公共引导：由 $0 向上定位并加载 common.sh（KUAL_HOME 定位 / 屏幕反馈 / 运行日志）。
+# 找不到 common.sh 时仅降级屏幕反馈，主动作不受影响。
+_b=$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd) || _b=''
+while [ -n "$_b" ] && [ "$_b" != / ] && [ ! -f "$_b/common.sh" ]; do _b=$(dirname "$_b"); done
+if [ -f "$_b/common.sh" ]; then
+    . "$_b/common.sh"
+else
+    msg_wait(){ :; }; msg_info(){ :; }; msg_ok(){ :; }
+    msg_fail(){ printf '[KUAL] FAILED: %s\n' "$*" >&2; }
+fi
+unset _b
 
 # 清理日志：删除 USB 可见区（/mnt/us）内的所有日志文件，以及 Kindle 5.16.x+
 # 生成的 4 类崩溃日志 / 转储文件：
@@ -16,18 +20,8 @@ KUAL_HOME=${KUAL_HOME:-$_kh}
 # 注意：插件自身的运行日志目录（$KUAL_HOME/logs）由 bin/log.sh 的 3 天保留策略管理，
 #       本功能会跳过它，避免「清理日志」把刚产生的运行日志删掉。
 
-if [ -r "$KUAL_HOME/bin/msg.sh" ]; then
-    . "$KUAL_HOME/bin/msg.sh"
-else
-    _log_write() { return 0; }
-    [ -n "$KUAL_HOME" ] && [ -r "$KUAL_HOME/bin/log.sh" ] && . "$KUAL_HOME/bin/log.sh"
-    _eips=$(command -v eips 2>/dev/null)
-    msg_show() { [ -n "$_eips" ] && "$_eips" 2 "$1" "$2" >/dev/null 2>&1; printf '[KUAL] %s\n' "$2" >&2; }
-    msg_wait() { msg_show 3 "Waiting... $*"; _log_write START "$*"; }
-    msg_info() { msg_show 3 "$*"; _log_write INFO "$*"; }
-    msg_ok()   { msg_show 4 "Done: $*"; _log_write OK "$*"; }
-    msg_fail() { msg_show 4 "Failed: $*"; _log_write FAIL "$*"; }
-fi
+# 屏幕反馈与运行日志已由 common.sh 统一加载（见 bin/common.sh）。
+:
 
 US_ROOT=${US_ROOT:-/mnt/us}
 

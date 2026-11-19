@@ -31,6 +31,11 @@ import urllib.error
 
 UA = 'kual-helper-updater'
 API = 'https://api.github.com/repos/%s/releases/latest'
+# Sanity ceilings: a helper release zip is ~100 KB. Anything near megabytes is
+# almost certainly an HTML error page or a corrupt/wrong asset; cap the read so
+# a bad response cannot exhaust the Kindle's small RAM.
+MAX_JSON_BYTES = 2 * 1024 * 1024
+MAX_ZIP_BYTES = 8 * 1024 * 1024
 
 
 def _is_cert_error(exc):
@@ -57,14 +62,19 @@ def _insecure_ctx():
         return ctx
 
 
-def http_get(url, timeout=15):
+def _read_capped(resp, limit):
+    """Read at most `limit + 1` bytes so oversized bodies are detectable."""
+    return resp.read(limit + 1)
+
+
+def http_get(url, timeout=15, limit=MAX_JSON_BYTES):
     req = urllib.request.Request(
         url,
         headers={'User-Agent': UA,
                  'Accept': 'application/vnd.github+json'})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.read()
+            body = _read_capped(resp, limit)
     except Exception as exc:
         if not _is_cert_error(exc):
             raise
@@ -73,7 +83,10 @@ def http_get(url, timeout=15):
         print('TLS verify unavailable on device - retrying without CA check')
         with urllib.request.urlopen(req, timeout=timeout,
                                     context=_insecure_ctx()) as resp:
-            return resp.read()
+            body = _read_capped(resp, limit)
+    if len(body) > limit:
+        raise ValueError('response too large (%d bytes)' % len(body))
+    return body
 
 
 def latest_tag_via_web(repo, timeout=15):
@@ -197,7 +210,7 @@ def main():
     # 弱网 / CDN 抖动时重试一次，避免单次超时就判定更新失败。
     for _attempt in range(2):
         try:
-            payload = http_get(dl, timeout=90)
+            payload = http_get(dl, timeout=90, limit=MAX_ZIP_BYTES)
             break
         except Exception as e:
             last_err = e
@@ -211,7 +224,16 @@ def main():
     extract_dir = os.path.join(tmp, 'ext')
     os.makedirs(extract_dir, exist_ok=True)
     dest_root = os.path.realpath(extract_dir)
-    with zipfile.ZipFile(zip_path) as z:
+    try:
+        z = zipfile.ZipFile(zip_path)
+    except zipfile.BadZipFile:
+        # A redirect/HTML error body can look like a successful download.  Fail
+        # clearly instead of letting an exception spill an English traceback
+        # onto the eips screen via github_update.sh.
+        shutil.rmtree(tmp, ignore_errors=True)
+        print('Downloaded file is not a valid zip (wrong asset or network error)')
+        return 1
+    with z:
         # 防 zip-slip：拒绝绝对路径与 ../ 逃逸成员。
         for info in z.infolist():
             target = os.path.realpath(os.path.join(extract_dir, info.filename))
@@ -219,12 +241,22 @@ def main():
                 print('Unsafe path in package, install refused: %s' % info.filename)
                 shutil.rmtree(tmp, ignore_errors=True)
                 return 1
+        if not z.namelist():
+            print('Update package is empty, install refused')
+            shutil.rmtree(tmp, ignore_errors=True)
+            return 1
         z.extractall(extract_dir)
 
     entries = os.listdir(extract_dir)
     src = extract_dir
     if len(entries) == 1 and os.path.isdir(os.path.join(extract_dir, entries[0])):
         src = os.path.join(extract_dir, entries[0])
+
+    # Refuse to overwrite a working install with a wrong/mislabeled asset.
+    if not os.path.isfile(os.path.join(src, 'config.xml')):
+        print('Update package has no config.xml, install refused')
+        shutil.rmtree(tmp, ignore_errors=True)
+        return 1
 
     for root, _dirs, files in os.walk(src):
         rel = os.path.relpath(root, src)

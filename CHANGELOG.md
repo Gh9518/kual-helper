@@ -1,5 +1,41 @@
 # 更新说明 / Changelog
 
+## v1.11.0 — 2026-11-20
+
+**重构 / Refactor（结构与可维护性，功能不变）**
+- 新增 `bin/common.sh`：把原先散落在 14 个脚本里、约 20 行/份的「KUAL_HOME 自定位 +
+  msg.sh 加载 + 降级函数 + print_log」样板代码**收敛为唯一实现**。公共行为今后只需改一处，
+  消除历史上「改一处漏十三处」导致功能集体失效的结构性风险。
+- 13 个动作脚本与 `config.sh` 改为统一 source `common.sh`；common.sh 自带幂等哨兵，
+  重复 source 安全。已逐行比对：13 个脚本的**主体业务逻辑与上一版完全一致**，
+  本次只替换了引导头。
+- 引导头在 common.sh 缺失时仍提供最小屏幕反馈降级，主动作不受影响。
+
+**稳定性 / Stability**
+- `FixCover._get_isbn()`：`EPUBFile` 未 `close()`，联网补封面遍历大量 EPUB 时会泄漏
+  ZipFile 句柄；改为 `try/finally` 确定性关闭（成功与异常路径均覆盖）。
+- `FixCover._find_pdf_manual_cover()`：`open().read()` 改用 `with` 关闭文件句柄。
+- `FixCover.__del__()`：构造中途失败时 `db_access` 可能未定义，加 `getattr` 防御，
+  避免解释器退出时二次抛异常。
+- `DualMetaFix.DualMobiMetaFix`：mmap 文件句柄原先从不关闭，且 3 处 early return
+  会跳过 flush/close；改为 `try/finally` + 幂等 `close()`，任何路径都释放映射与句柄。
+- 更新器 `github_update.py`：下载增加大小上限（JSON 2MB / 更新包 8MB），防止异常响应
+  撑爆 Kindle 小内存；下载后校验 zip 合法性、空包、zip-slip、以及必须含 `config.xml`，
+  避免错误资产覆盖掉可用插件；错误提示改为可读英文而非 Python traceback。
+- `config.sh` 的 `get_python()` 变量加引号，路径含空格时也可正确探测。
+
+**校验 / Verified**
+- 引导头探针 **14/14**（每个入口均能产出 Waiting/Done/Failed 三类反馈）；
+  13 个脚本主体逻辑逐行 diff 与上一版一致；Python 健壮性桩测 **12/12**；
+  v1.10.1 的 mmap OOM 回归 **5/5**（64MB 文件 RSS 增量 0KB）；
+  全部 `.sh` 通过 `sh -n`、全部 `.py` 编译通过。
+
+**文档 / Docs**
+- `config.xml` / `VERSION` 升至 v1.11.0；`README.md`、`RELEASE_NOTES.md`、
+  `CHANGELOG.md` 同步；两个 zip 重新打包。
+
+---
+
 ## v1.10.1 — 2026-11-15
 
 **修复 / Fixed（离线「修复封面」被系统杀掉，rc=137）**

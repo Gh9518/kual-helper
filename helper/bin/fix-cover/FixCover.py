@@ -234,10 +234,17 @@ Feedback: %s' % (name, version, feedback)
             except Exception:
                 pass
         if ext == '.epub':
+            # EPUBFile wraps a ZipFile; close it deterministically or a long
+            # online-cover run over hundreds of books leaks file descriptors.
+            epub_file = None
             try:
-                return EPUBFile(path).get_metadata('ISBN')
+                epub_file = EPUBFile(path)
+                return epub_file.get_metadata('ISBN')
             except Exception:
                 pass
+            finally:
+                if epub_file is not None:
+                    epub_file.close()
         return None
 
 
@@ -270,7 +277,8 @@ Feedback: %s' % (name, version, feedback)
         for c in candidates:
             try:
                 if os.path.isfile(c):
-                    return open(c, 'rb').read()
+                    with open(c, 'rb') as fh:
+                        return fh.read()
             except Exception:
                 pass
         return None
@@ -566,6 +574,11 @@ Feedback: %s' % (name, version, feedback)
 
 
     def __del__(self):
-        if (self.db_access):
-            self.db_connection.commit()
-            self.db_connection.close()
+        # __init__ may have failed before db_access/connection were set; guard
+        # so teardown never raises a second exception during interpreter exit.
+        try:
+            if getattr(self, 'db_access', False):
+                self.db_connection.commit()
+                self.db_connection.close()
+        except Exception:
+            pass

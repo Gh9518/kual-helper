@@ -137,49 +137,79 @@ def del_exth(rec0, exth_num):
 class DualMobiMetaFix:
     def __init__(self, infile, outfile, asin):
         shutil.copyfile(infile, outfile)
-        f = open(outfile, "r+b")
-        self.datain = mmap.mmap(f.fileno(), 0)
-        self.datain_rec0 = readsection(self.datain, 0)
+        # Keep the file handle on the instance and close it deterministically.
+        # The old local `f` was never closed, and the early returns below
+        # skipped both flush() and close() entirely, leaking an mmap + fd.
+        self._fh = open(outfile, "r+b")
+        self.datain = mmap.mmap(self._fh.fileno(), 0)
+        self.datain_rec0 = None
+        self.datain_kfrec0 = None
+        try:
+            self.datain_rec0 = readsection(self.datain, 0)
 
-        # in the first mobi header
-        # add 501 to "EBOK", add 113 as asin, add 504 as asin
-        rec0 = self.datain_rec0
-        rec0 = del_exth(rec0, 501)
-        rec0 = del_exth(rec0, 113)
-        rec0 = del_exth(rec0, 504)
-        rec0 = add_exth(rec0, 501, b'EBOK')
-        rec0 = add_exth(rec0, 113, asin)
-        rec0 = add_exth(rec0, 504, asin)
-        replacesection(self.datain, 0, rec0)
+            # in the first mobi header
+            # add 501 to "EBOK", add 113 as asin, add 504 as asin
+            rec0 = self.datain_rec0
+            rec0 = del_exth(rec0, 501)
+            rec0 = del_exth(rec0, 113)
+            rec0 = del_exth(rec0, 504)
+            rec0 = add_exth(rec0, 501, b'EBOK')
+            rec0 = add_exth(rec0, 113, asin)
+            rec0 = add_exth(rec0, 504, asin)
+            replacesection(self.datain, 0, rec0)
 
-        ver = getint(self.datain_rec0, mobi_version)
-        self.combo = (ver != 8)
-        if not self.combo:
-            return
+            ver = getint(self.datain_rec0, mobi_version)
+            self.combo = (ver != 8)
 
-        exth121 = read_exth(self.datain_rec0, 121)
-        if len(exth121) == 0:
-            self.combo = False
-            return
-        else:
-            # only pay attention to first exth121
-            # (there should only be one)
-            datain_kf8, = struct.unpack_from('>L', exth121[0], 0)
-            if datain_kf8 == 0xffffffff:
-                self.combo = False
-                return
-        self.datain_kfrec0 = readsection(self.datain, datain_kf8)
+            if self.combo:
+                exth121 = read_exth(self.datain_rec0, 121)
+                if len(exth121) == 0:
+                    self.combo = False
+                else:
+                    # only pay attention to first exth121
+                    # (there should only be one)
+                    datain_kf8, = struct.unpack_from('>L', exth121[0], 0)
+                    if datain_kf8 == 0xffffffff:
+                        self.combo = False
+                    else:
+                        self.datain_kfrec0 = readsection(self.datain, datain_kf8)
 
-        # in the second header
-        # add 501 to "EBOK", add 113 as asin, add 504 as asin
-        rec0 = self.datain_kfrec0
-        rec0 = del_exth(rec0, 501)
-        rec0 = del_exth(rec0, 113)
-        rec0 = del_exth(rec0, 504)
-        rec0 = add_exth(rec0, 501, b'EBOK')
-        rec0 = add_exth(rec0, 113, asin)
-        rec0 = add_exth(rec0, 504, asin)
-        replacesection(self.datain, datain_kf8, rec0)
+                        # in the second header
+                        # add 501 to "EBOK", add 113 as asin, add 504 as asin
+                        rec0 = self.datain_kfrec0
+                        rec0 = del_exth(rec0, 501)
+                        rec0 = del_exth(rec0, 113)
+                        rec0 = del_exth(rec0, 504)
+                        rec0 = add_exth(rec0, 501, b'EBOK')
+                        rec0 = add_exth(rec0, 113, asin)
+                        rec0 = add_exth(rec0, 504, asin)
+                        replacesection(self.datain, datain_kf8, rec0)
+        finally:
+            # Always flush and release, including every early-return case.
+            self.close()
 
-        self.datain.flush()
-        self.datain.close()
+    def close(self):
+        """Flush and release the mmap and file handle; safe to call twice."""
+        try:
+            if self.datain is not None:
+                self.datain.flush()
+        except Exception:
+            pass
+        try:
+            if self.datain is not None:
+                self.datain.close()
+        except Exception:
+            pass
+        try:
+            if self._fh is not None:
+                self._fh.close()
+        except Exception:
+            pass
+        self.datain = None
+        self._fh = None
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass

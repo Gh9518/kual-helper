@@ -1,11 +1,11 @@
-# KUAL Helper v1.10.1 — 发布说明 / Release Notes
+# KUAL Helper v1.11.0 — 发布说明 / Release Notes
 
 > 单插件整合版 · 适用于 Kindle（KUAL / MRPI 环境） · 中文菜单 + 全动作屏幕反馈
 > Single-extension build · for Kindle with KUAL/MRPI · Chinese menus + on-screen feedback
 >
-> **v1.10.1 修复「修复封面」OOM（rc=137）/ v1.10.1: fixed the cover-repair OOM kill (rc=137)**
+> **v1.11.0 稳定性与结构优化（功能不变）/ v1.11.0: stability & structure improvements (no feature change)**
 >
-> 上一版 v1.10.0：真机日志查验、故障修复与运行时防锁屏 / v1.10.0: real-device log audit, bug fixes and no-lock-during-repair
+> 上一版 v1.10.1：修复「修复封面」OOM（rc=137）/ v1.10.1: fixed the cover-repair OOM kill (rc=137)
 
 ---
 
@@ -64,7 +64,25 @@ Helper
   不覆盖用户手动设置的屏保状态。
 - **兼容老固件**：「检查更新」遇到设备 CA 证书过期时降级重试，不再直接失败。
 
-### 本版变更（v1.10.1：修复封面 OOM）
+### 本版变更（v1.11.0：稳定性与结构优化，功能不变）
+
+- **结构：公共引导收敛到一处**：新增 `bin/common.sh`，把原先 14 个脚本里各复制约 20 行的
+  「KUAL_HOME 自定位 + msg.sh 加载 + 降级 + print_log」样板代码收敛为唯一实现，并带幂等
+  哨兵（重复 source 安全）。13 个动作脚本与 `config.sh` 统一改为 source `common.sh`；
+  逐行比对确认各脚本业务主体与上一版完全一致，仅替换引导头。公共行为今后只改一处，
+  消除历史上「改一处漏十三处」导致功能集体失效的结构性风险。common.sh 缺失时仍有最小
+  屏幕反馈降级，主动作不受影响。
+- **稳定性：修复资源泄漏**：`FixCover._get_isbn()` 中未关闭的 `EPUBFile`（联网补封面遍历
+  大量 EPUB 时累积 ZipFile 句柄）改为 `try/finally` 确定性关闭；`_find_pdf_manual_cover()`
+  用 `with` 关闭句柄；`__del__` 加防御；`DualMetaFix` 的 mmap 句柄与 3 处提前返回改为
+  `try/finally` + 幂等 `close()`。
+- **稳定性：更新器边界防护**：`github_update.py` 下载增加大小上限（JSON 2MB / 更新包 8MB），
+  防止异常响应撑爆 Kindle 小内存；下载后校验 zip 合法、非空、无路径穿越、且必须含
+  `config.xml`，避免错误资产覆盖掉可用插件；错误提示改为可读英文而非 Python traceback。
+- **校验**：引导头探针 14/14、13 个脚本主体逐行 diff 一致、Python 健壮性桩测 12/12、
+  v1.10.1 的 mmap OOM 回归 5/5、全部 `.sh` 语法与 `.py` 编译通过。
+
+### 上一版变更（v1.10.1：修复封面 OOM）
 
 - **修复 `rc=137`**：三份真机日志显示不带参数的「修复封面」连续 3 次被 SIGKILL，而
   「清理封面」「联网修复封面」正常。根因是 `Sectionizer` 用 `open().read()` 把整本电子书
@@ -177,6 +195,27 @@ Helper
   never overwritten.
 - **TLS fallback for older firmware**: the updater retries without CA verification only when the
   device reports a certificate error; timeouts and HTTP 403 are never misclassified.
+
+### Changes in v1.11.0
+
+- **Structure — one shared bootstrap**: added `bin/common.sh` as the single implementation of
+  the ~20-line bootstrap that was duplicated in 14 scripts (KUAL_HOME self-location, loading
+  `msg.sh`, fallbacks, `print_log`), with an idempotence guard. All 13 action scripts and
+  `config.sh` now source it; a line-by-line diff confirms each script's business body is
+  unchanged. Future shared fixes need editing in only one place, removing the structural risk
+  that once made "all features stop working" easy to trigger. A minimal screen-feedback
+  fallback remains if common.sh is ever missing.
+- **Stability — resource leaks**: `FixCover._get_isbn()` leaked an unclosed `EPUBFile` (accumulating
+  ZipFile handles during online cover fixes over many EPUBs); now closed deterministically via
+  `try/finally`. `_find_pdf_manual_cover()` uses `with`, `__del__` is guarded, and `DualMetaFix`'s
+  mmap handle plus three early returns now always flush/close via `try/finally` + idempotent
+  `close()`.
+- **Stability — updater bounds**: `github_update.py` caps downloads (JSON 2MB / package 8MB) so a
+  bad response cannot exhaust the Kindle's small RAM, and validates the zip (well-formed, non-empty,
+  no path traversal, must contain `config.xml`) before installing — refusing a wrong asset instead
+  of overwriting a working plugin. Errors are now readable English instead of a Python traceback.
+- **Verified**: bootstrap probes 14/14; 13 script bodies byte-identical by diff; Python hardening
+  stub tests 12/12; v1.10.1 mmap OOM regression 5/5; all `.sh` pass `sh -n`, all `.py` compile.
 
 ### Changes in v1.10.1
 
