@@ -84,7 +84,13 @@ else
 fi
 GT_TMPD=''
 GT_OWNDIR=1
+GT_RW_HELD=0       # 是否已把系统分区切到 rw；EXIT 清理时据此恢复 ro
 _gt_cleanup() {
+    # 无论正常结束还是信号中断，都先恢复系统分区只读，避免停留在 rw。
+    if [ "$GT_RW_HELD" -eq 1 ]; then
+        mntroot ro 2>/dev/null
+        GT_RW_HELD=0
+    fi
     nolock_end
     if [ -n "$GT_TMPD" ]; then
         # 自建目录可整体删除；若退化到 /tmp 本身，只删本进程的结果文件。
@@ -101,18 +107,29 @@ _gt_cleanup() {
 # 所有自写行（标题/统计/生效/备用）都带 COMMENT 标记或域名，
 # 且不再单独写入孤立空行，避免每跑一次 hosts 就累积一行。
 clean_hosts() {
-    TMP="$HOSTS_FILE.kualtmp"
+    # 用带 PID 的临时名避免多个实例并发时互相覆盖。
+    TMP="$HOSTS_FILE.kualtmp.$$"
+    # 重定向会创建 TMP；grep -v 过滤后无匹配时返回 1 属正常，故不据此中断。
     $GREP_CMD -v -F "$TARGET_DOMAIN" "$HOSTS_FILE" 2>/dev/null \
-        | $GREP_CMD -v -F "$COMMENT" > "$TMP" || : > "$TMP"
-    mv "$TMP" "$HOSTS_FILE" 2>/dev/null
-    chmod 644 "$HOSTS_FILE" 2>/dev/null
+        | $GREP_CMD -v -F "$COMMENT" > "$TMP" 2>/dev/null
+    # 保护：源文件不可读或分区只读导致 TMP 未生成时，绝不 mv 空文件覆盖 hosts。
+    if [ ! -r "$HOSTS_FILE" ] || [ ! -f "$TMP" ]; then
+        rm -f "$TMP" 2>/dev/null
+        return 1
+    fi
+    if mv "$TMP" "$HOSTS_FILE" 2>/dev/null; then
+        chmod 644 "$HOSTS_FILE" 2>/dev/null
+        return 0
+    fi
+    rm -f "$TMP" 2>/dev/null
+    return 1
 }
 
 # -d：仅删除规则（保留备用，不出现在菜单里）
 if [ "$1" = "-d" ]; then
-    mntroot rw 2>/dev/null
+    mntroot rw 2>/dev/null && GT_RW_HELD=1
     clean_hosts
-    mntroot ro 2>/dev/null
+    mntroot ro 2>/dev/null && GT_RW_HELD=0
     msg_ok "Google Translate hosts rule removed"
     exit 0
 fi
@@ -216,11 +233,11 @@ RANKED=$(printf '%s\n' "$RESULTS" | $GREP_CMD -E '^[0-9]' | sort -n)
 FASTEST_IP=$(printf '%s\n' "$RANKED" | $SED_CMD -n '1s/^[^ ]* //p')
 FASTEST_TIME=$(printf '%s\n' "$RANKED" | $SED_CMD -n '1s/ .*//p')
 
-mntroot rw 2>/dev/null
+mntroot rw 2>/dev/null && GT_RW_HELD=1
 
 if [ -z "$FASTEST_IP" ]; then
     msg_fail "No reachable IP ($TRIES of $TOTAL tested, Google may be blocked on this network)"
-    mntroot ro 2>/dev/null
+    mntroot ro 2>/dev/null && GT_RW_HELD=0
     exit 0
 fi
 
@@ -241,6 +258,6 @@ clean_hosts
 } >> "$HOSTS_FILE"
 chmod 644 "$HOSTS_FILE" 2>/dev/null
 
-mntroot ro 2>/dev/null
+mntroot ro 2>/dev/null && GT_RW_HELD=0
 msg_ok "Fastest IP $FASTEST_IP written (${FASTEST_TIME}s, $FOUND/$TRIES ok)"
 nolock_end
