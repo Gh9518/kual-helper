@@ -30,8 +30,11 @@ if [ ! -f otaupd.bck ] || [ ! -f otav3.bck ]; then
 fi
 
 rm -f otaupd otav3
-mv otaupd.bck otaupd
-mv otav3.bck otav3
+if ! mv otaupd.bck otaupd || ! mv otav3.bck otav3; then
+    mntroot ro
+    msg_fail "Cannot restore OTA binaries (backup missing)"
+    exit 0
+fi
 
 mntroot ro
 msg_ok "OTA binaries restored, rebooting..."

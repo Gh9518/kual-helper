@@ -30,8 +30,11 @@ if [ -f otaupd.bck ] || [ -f otav3.bck ]; then
     exit 0
 fi
 
-mv otaupd otaupd.bck
-mv otav3 otav3.bck
+if ! mv otaupd otaupd.bck || ! mv otav3 otav3.bck; then
+    mntroot ro
+    msg_fail "Cannot back up OTA binaries (unexpected filesystem state)"
+    exit 0
+fi
 
 printf '#!/bin/sh\n/bin/true\n' > /usr/bin/otav3
 printf '#!/bin/sh\n/bin/true\n' > /usr/bin/otaupd
