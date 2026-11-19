@@ -1,0 +1,175 @@
+{
+  "meta": {
+    "collected_at": "2026-11-20T00:43:55+0800",
+    "collector": "docs/perf/measure.py (same script reused in phase 0 and phase 3)",
+    "python": "3.11.1",
+    "host_os": "linux"
+  },
+  "project": {
+    "name": "Helper",
+    "id": "helper",
+    "version": "1.11.0",
+    "repository": "Gh9518/kual-helper",
+    "type": "KUAL extension for Kindle (embedded-device plugin)",
+    "languages": {
+      "shell_scripts": 19,
+      "python_modules": 9,
+      "manifest": 1,
+      "menu_definition": 1,
+      "note": "shell 为 /bin/sh (BusyBox ash on device); Python 目标为设备自带解释器"
+    },
+    "build_system": {
+      "markers_found": [],
+      "verdict": "无传统构建系统；交付物为纯脚本资源，通过确定性 zip 打包"
+    },
+    "runtime": {
+      "host": "Kindle e-reader with KUAL/MRPI, /mnt/us/extensions/helper",
+      "python_target": "设备自带 Python（不引入第三方依赖）",
+      "shell_target": "/bin/sh (BusyBox ash)"
+    },
+    "code_scale": {
+      "source_files_excluding_docs_zips": 32,
+      "total_source_bytes": 181088,
+      "lines": {
+        "sh": 1259,
+        "py": 2026
+      }
+    },
+    "entry_points": {
+      "manifest": "helper/config.xml",
+      "dynamic_menu": "helper/menu.json",
+      "menu_action_count": 17,
+      "dispatcher": "helper/bin/do.sh; each menu action invokes /bin/sh <abs path>",
+      "top_level_actions": [
+        "系统工具",
+        "修复失效",
+        "屏蔽更新",
+        "检查更新"
+      ]
+    }
+  },
+  "metrics": {
+    "build": {
+      "measurable": true,
+      "samples_sec": [
+        0.004145,
+        0.00421,
+        0.004296,
+        0.004734,
+        0.005216
+      ],
+      "median_sec": 0.004296,
+      "method": "内存中确定性打包 helper/ 全部源码 5 次（固定时间戳/顺序/权限），取中位数",
+      "package_bytes": 105959,
+      "package_sha256": "251ef2164b32a39815892b5744f7dde9bae5a527113366ff19ea916453412b3b"
+    },
+    "artifact": {
+      "measurable": true,
+      "artifacts": {
+        "helper.zip": {
+          "exists": true,
+          "bytes": 105959,
+          "sha256": "6955474bd043f00b4f1ccc5a4c68f1d659a1eb47aee1247ca216d5ca8822e23b"
+        },
+        "extensions.zip": {
+          "exists": true,
+          "bytes": 105959,
+          "sha256": "6955474bd043f00b4f1ccc5a4c68f1d659a1eb47aee1247ca216d5ca8822e23b"
+        }
+      },
+      "method": "stat + sha256sum（宿主机交付物）"
+    },
+    "cold_start": {
+      "measurable_on_device": false,
+      "reason_device_unmeasurable": "真机 KUAL 菜单渲染/首次加载耗时需设备计时，本环境无 Kindle 硬件",
+      "host_proxy": {
+        "what": "source common.sh 的进程级耗时（菜单动作引导链的宿主机代理）",
+        "repeats": 40,
+        "median_ms": 1.921,
+        "p90_ms": 2.181
+      }
+    },
+    "key_operation_response": {
+      "measurable_on_device": false,
+      "reason_device_unmeasurable": "真机 lipc/eips 调用与 eMMC 写入耗时不可在此环境复现",
+      "host_proxy": {
+        "what": "ssallow.sh 在命令桩下的进程级执行（含引导+日志），关键操作的宿主机代理",
+        "repeats": 30,
+        "median_ms": 7.255
+      }
+    },
+    "peak_memory": {
+      "measurable_on_device": false,
+      "reason_device_unmeasurable": "Kindle 内存/RSS 计数器与设备 Python 版本不可在此环境读取",
+      "host_proxy": {
+        "what": "宿主机 import 封面解析全部模块后的峰值 RSS（反映常驻代码与模块加载开销）",
+        "peak_rss_kb": 22392,
+        "import_ok": true,
+        "stderr": ""
+      },
+      "historical_note": "v1.10.1 桩测已证明单次 mmap 改造使 64MB 文件 RSS 增量从 64.0MB 降至 0.1MB（该结论来自上一阶段测试，此处不重复计为本次实测）"
+    },
+    "lint_typecheck": {
+      "sh_syntax_checked": 19,
+      "sh_syntax_failures": [],
+      "py_compile_checked": 9,
+      "py_compile_failures": [],
+      "total_warnings": 0,
+      "method": "sh -n 逐个脚本；python3 compile() 逐个模块（PYTHONDONTWRITEBYTECODE=1，不落盘）",
+      "note": "本项目无独立 lint/typecheck 配置（无 .flake8/.pylintrc/mypy.ini），以语法+编译检查作为等价基线"
+    },
+    "tests": {
+      "measurable": true,
+      "committed_test_files": [],
+      "test_case_count": 0,
+      "pass_rate": null,
+      "note": "仓库内无纳入版本的测试文件；历史桩测均为临时产物且已在每次发布后删除，故基线记为 0。阶段 3 新增的测试另行计数。"
+    },
+    "idle_background": {
+      "event_driven": true,
+      "resident_daemon": false,
+      "cron_registration_detected": false,
+      "raw_hits": {
+        "background_op": [
+          "helper/bin/fix-google-translate/fix_google_translate.sh:209"
+        ],
+        "sleep_call": [
+          "helper/bin/block-ota/rename.sh:42",
+          "helper/bin/block-ota/restore.sh:38"
+        ],
+        "loop": [
+          "helper/bin/backdoorlock/delete.sh:6",
+          "helper/bin/backdoorlock/lock.sh:6",
+          "helper/bin/backdoorlock/unlock.sh:6",
+          "helper/bin/block-ota/rename.sh:6",
+          "helper/bin/block-ota/restore.sh:6",
+          "helper/bin/clean_logs.sh:6",
+          "helper/bin/clean_logs.sh:60",
+          "helper/bin/common.sh:24",
+          "helper/bin/config.sh:8",
+          "helper/bin/do.sh:6",
+          "helper/bin/fix-cover/DualMetaFix.py:106",
+          "helper/bin/fix-cover/DualMetaFix.py:120",
+          "helper/bin/fix-cover/File.py:94",
+          "helper/bin/fix-cover/fix_cover.sh:6",
+          "helper/bin/fix-cover/fix_cover.sh:60",
+          "helper/bin/fix-google-translate/fix_google_translate.sh:6",
+          "helper/bin/fix-google-translate/fix_google_translate.sh:238",
+          "helper/bin/github_update.sh:6",
+          "helper/bin/github_update.sh:43",
+          "helper/bin/log.sh:45",
+          "helper/bin/sdr-cleaner/sdr_cleaner.py:36",
+          "helper/bin/sdr-cleaner/sdr_cleaner.sh:6",
+          "helper/bin/ssallow.sh:6",
+          "helper/bin/ssprevent.sh:6"
+        ],
+        "cron_registration": []
+      },
+      "measurable_on_device": false,
+      "reason_device_unmeasurable": "Kindle 真机不可在此环境启动；无法用 ps/top 观测空闲进程",
+      "bg_hit_explained": "唯一 & 命中为 fix_google_translate.sh 的分批并行 IP 测速（BATCH_SIZE 批、_gt_collect 回收全部子进程），属有限并发，非后台守护",
+      "sleep_hit_explained": "sleep 2 出现在 block-ota/rename.sh 与 restore.sh，用于 mntroot 挂载切换后的有限等待，固定 2 秒、非无限轮询",
+      "static_conclusion": "KUAL 插件由菜单点击触发，无常驻守护进程、无 cron 注册；已复核全部 & / sleep / while 命中：均为动作执行期内的有限并发或有限等待，无空闲态无限轮询定时器。"
+    }
+  }
+}
